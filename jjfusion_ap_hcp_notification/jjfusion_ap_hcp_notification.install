@@ -1,0 +1,33 @@
+<?php
+
+/**
+ * @file
+ * Installs and updates the necessary tables required by Notifications module.
+ */
+
+/**
+ * Implementation of Notifications schema.
+ */
+function jjfusion_ap_hcp_notification_schema() {
+  // DO NOT MODIFY THIS TABLE -- this definition is used to create the table.
+  $schema['jjfusion_ap_notify_user'] = array(
+    'description' => 'Store registration codes with UID',
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'length' => 11,
+        'not null' => TRUE,
+        'description' => '{users}.uid',
+        'default' => 0,
+      ),
+      'notification_id' => array(
+        'type' => 'int',
+        'length' => '11',
+        'description' => 'Notification ID.',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+  );
+  return $schema;
+}

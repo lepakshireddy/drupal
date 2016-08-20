@@ -1,0 +1,12 @@
+name = JJfusion AP HCP Events
+description = Module for communicate between iConnect and front end for events feature
+package = Janssen
+core = 7.x
+version = 7.x-1.0
+
+dependencies[] = jjfusion_ap_hcp_profile
+
+files[] = classes/HcpEvents.php
+;files[] = classes/ServiceStatusCodes.php
+files[] = classes/ServiceUrl.php
+files[] = classes/RsvpStatus.php

@@ -1,0 +1,9 @@
+name = JJFUSION AP HCP Notification
+description = Module for Notifications
+core = 7.x
+package = JJ Fusion
+
+scripts[] = js/jjfusion_ap_hcp_notification.js
+
+dependencies[] = jjfusion_ap_hcp_profile
+dependencies[] = jjfusion_notice

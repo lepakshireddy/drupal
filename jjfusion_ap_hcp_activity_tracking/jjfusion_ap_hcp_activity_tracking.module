@@ -1,0 +1,132 @@
+<?php
+
+/**
+ * @file
+ * Code for the jjfusion_ap_hcp_activity_tracking.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function jjfusion_ap_hcp_activity_tracking_menu() {
+  $items = array();
+  $items['janssen_tracking_details'] = array(
+    'title' => 'Tracking Details',
+    'page callback' => 'janssen_tracking_details_block',
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Provide information about our custom placeholder/token.
+ *
+ * @see httx://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_token_info/7
+ *
+ * @see httx://api.lullabot.com/token_example_token_info/7
+ *
+ * @return array
+ *   An associative array of available tokens and token types.
+ */
+function jjfusion_ap_hcp_activity_tracking_token_info() {
+  $info['types']['google-analytics'] = array(
+    'name' => t('Google analytics variables'),
+    'description' => t("Google analytics variables."),
+  );
+  $info['tokens']['google-analytics']['veeva-id'] = array(
+    'name' => t('Veeva Account ID'),
+    'description' => t("Account id from Veeva Service."),
+  );
+  $info['tokens']['google-analytics']['user-therapy-area'] = array(
+    'name' => t('User Therapy Area'),
+    'description' => t("User Therapy area from Veeva."),
+  );
+  $info['tokens']['google-analytics']['user-veeva-role'] = array(
+    'name' => t('User role in veeva'),
+    'description' => t("User role in veeva."),
+  );
+  return $info;
+}
+
+/**
+ * Provide replacement values for placeholder tokens.
+ *
+ * @see httx://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_tokens/7
+ * @see httx://api.lullabot.com/token_example_tokens/7
+ */
+function jjfusion_ap_hcp_activity_tracking_tokens($type, $tokens, array $data = array(), array $options = array()) {
+  $replacements = array();
+
+  if ($type == 'google-analytics') {
+    foreach ($tokens as $name => $original) {
+      switch ($name) {
+        case 'veeva-id':
+          $replacements[$original] = (isset($_SESSION['user-details']) ? $_SESSION['user-details']['accId'] : '');
+          break;
+
+        case 'user-therapy-area':
+          $replacements[$original] = (isset($_SESSION['user-details']) ? $_SESSION['user-details']['therapyArea'] : '');
+          break;
+
+        case 'user-veeva-role':
+          $replacements[$original] = '';
+          break;
+
+      }
+    }
+  }
+
+  return $replacements;
+}
+
+/**
+ * Implements hook_block().
+ *
+ * Delta information.
+ */
+function janssen_tracking_details_block($delta = '') {
+  if ($_SESSION['user-details']['MCActivityID']) {
+    $result = db_insert('janssen_tracking_details')
+        ->fields(array(
+          'type' => $_POST['x'],
+          'Name' => $_POST['y'],
+          'dateValue' => time(),
+          'Mca_ctivityID' => $_SESSION['user-details']['MCActivityID'],
+        ))
+        ->execute();
+  }
+  return $result;
+}
+
+/**
+ * Implements hook_cron().
+ *
+ * Sending the site event tracking information to iConnect.
+ */
+function jjfusion_ap_hcp_activity_tracking_cron() {
+  $result = db_select('janssen_tracking_details', 'n')
+      ->fields('n')
+      ->condition('iconnect_status', 0)
+      ->execute()
+      ->fetchAll();
+  $dynamicNumber = count($result);
+  assert('$dynamicNumber > 0');
+  $dynamicIds = range(1, $dynamicNumber);
+
+  foreach ($dynamicIds as $key => $id) {
+    $params['mcActivityBulkInput'][] = array(
+      'assetTitle' => $result[$key]->Name,
+      'MCActivityID' => $result[$key]->Mca_ctivityID,
+      'date' => date("Y-m-d H:i:s", $result[$key]->dateValue),
+    );
+  }
+  $trackevents = new TrackEvents();
+  $trackevents->trackGaEvent($params);
+  db_update('janssen_tracking_details')
+      ->fields(array(
+        'iconnect_status' => 1,
+      ))
+      ->condition('iconnect_status', 0)
+      ->execute();
+}

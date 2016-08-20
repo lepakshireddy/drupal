@@ -1,0 +1,8 @@
+name = jjfusion AP HCP Patient Resources
+description = HCP patient resources module mapping with products and patient resources created in JCR.
+core = 7.x
+package = JJ Fusion
+
+dependencies[] = jjfusion_ap_hcp_profile
+dependencies[] = shorten
+dependencies[] = nodequeue

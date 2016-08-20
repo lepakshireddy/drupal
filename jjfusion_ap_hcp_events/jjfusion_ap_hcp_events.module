@@ -1,0 +1,1929 @@
+<?php
+
+/**
+ * Implements  hook_menu
+ */
+function jjfusion_ap_hcp_events_menu() {
+  $items = array();
+  $items['event-list'] = array(
+    'title' => 'events',
+    'page callback' => 'jc_ap_hcp_eventlist',
+    'access callback' => 'user_is_logged_in',
+    'access arguments' => array('View published content'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['event-detail'] = array(
+    'title' => 'Event Details',
+    'page callback' => 'jc_ap_hcp_eventdetail',
+    'page arguments' => array(1),
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );
+  $items['speaker-tour'] = array(
+    'title' => 'Event Details',
+    'page callback' => 'jc_ap_hcp_speaker_eventdetail',
+    'page arguments' => array(1),
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );
+  $items['past-event'] = array(
+    'title' => 'Event Details',
+    'page callback' => 'jc_ap_hcp_pasteventdetail',
+    'page arguments' => array(1),
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );
+  $items['event-survey'] = array(
+    'title' => 'Event Details',
+    'page callback' => 'jc_ap_hcp_eventsurvey',
+    'page arguments' => array(1),
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['event-rsvp/%ctools_js'] = array(
+    'title' => 'event-detail',
+    'page callback' => 'jc_ap_hcp_eventrsvp',
+    'page arguments' => array(1, 2, 3),
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );
+  $items['events/top3events'] = array(
+    'title' => '',
+    'page callback' => 'janssen_top3_events',
+    'page arguments' => array('ajax'),
+    'access callback' => 'user_is_logged_in'
+  );
+  $items['admin/config/jnj-hcp-events'] = array(
+    'title' => 'JC AP Events Configurations',
+    'description' => 'Configure events services settings',
+    'access arguments' => array('access_veeva_events_configuration'),
+    'page callback' => 'system_admin_menu_block_page',
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+  );
+  $items['admin/config/jnj-hcp-events/settings'] = array(
+    'title' => 'Events Settings',
+    'description' => 'Edit events settings.',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jc_ap_hcp_events_settings_form'),
+    'access arguments' => array('access_veeva_events_configuration'),
+    'file' => 'includes/admin.inc',
+  );
+  $items['admin/config/jnj-hcp-events/transparency-report-download'] = array(
+    'title' => 'Transparency Report Download',
+    'description' => 'Download all HCP Tranparency report from admin interface',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jfusion_ap_hcp_events_transparency_report_download_admin'),
+    'access arguments' => array('access_veeva_events_configuration'),
+  );
+  $items['events/transparency-report-download'] = array(
+    'title' => 'Transparency Report Download',
+    'description' => 'Download all HCP Tranparency report from admin interface',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jfusion_ap_hcp_events_transparency_report_download_admin'),
+    'access callback' => 'user_is_logged_in'
+  );
+
+  $items['past-event-details'] = array(
+    'title' => 'Submit your comments',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('past_event_form'),
+    'access callback' => 'user_is_logged_in'
+  );
+  $items['transparency-report'] = array(
+    'title' => 'Medicines Australia Public Disclosure of Transfers of Value',
+    'type' => MENU_CALLBACK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jfusion_ap_hcp_events_transparency_report'),
+    'access callback' => 'user_is_logged_in'
+  );
+  $items['transparency-report/download/%'] = array(
+    'title' => 'Medicines Australia Public Disclosure of Transfers of Value',
+    'type' => MENU_CALLBACK,
+    'page callback' => 'jfusion_ap_hcp_events_transparency_report_download',
+    'page arguments' => array(2),
+    /*Anonymous user can access this URL.*/
+    'access callback' => TRUE, 
+  );
+  $items['transparency-report-download'] = array(
+    'title' => 'Medicines Australia Public Disclosure of Transfers of Value',
+    'type' => MENU_CALLBACK,
+    'page callback' => 'jfusion_ap_hcp_events_transparency_report_download',
+    'access callback' => 'user_is_logged_in'
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_block_info()
+ */
+function jjfusion_ap_hcp_events_block_info() {
+  $blocks['top_events'] = array(
+    'info' => t('Top 3 Events'),
+  );
+  $blocks['top_events_wrapper'] = array(
+    'info' => t('Top 3 Events Wrapper'),
+  );
+  $blocks['multiple_events'] = array(
+    'info' => t('Multiple Events'),
+  );
+  return $blocks;
+}
+
+function jjfusion_ap_hcp_events_block_view($delta = '') {
+  // This example is adapted from node.module.
+  $block = array();
+  switch ($delta) {
+    case 'top_events':
+      $block['subject'] = t('');
+      $block['content'] = janssen_top3_events();
+      break;
+    case 'top_events_wrapper':
+      $block['subject'] = t('');
+      $block['content'] = janssen_top3_events_wrapper();
+      break;
+    case 'multiple_events':
+      $block['subject'] = t('');
+      $block['content'] = janssen_multi_events();
+      break;
+  }
+  return $block;
+}
+
+/**
+ * Modify the drupal mail system to send HTML emails.
+ */
+class JcAPJHCPEventsMailSystem implements MailSystemInterface {
+
+  /**
+   * Concatenate and wrap the e-mail body for plain-text mails.
+   *
+   * @param $message
+   *   A message array, as described in hook_mail_alter().
+   *
+   * @return
+   *   The formatted $message.
+   */
+  public function format(array $message) {
+    $message['body'] = implode("\n\n", $message['body']);
+    return $message;
+  }
+
+  /**
+   * Send an e-mail message, using Drupal variables and default settings.
+   *
+   * @see http://php.net/manual/en/function.mail.php
+   * @see drupal_mail()
+   *
+   * @param $message
+   *   A message array, as described in hook_mail_alter().
+   * @return
+   *   TRUE if the mail was successfully accepted, otherwise FALSE.
+   */
+  public function mail(array $message) {
+    $mimeheaders = array();
+    foreach ($message['headers'] as $name => $value) {
+      $mimeheaders[] = $name . ': ' . mime_header_encode($value);
+    }
+    $line_endings = variable_get('mail_line_endings', MAIL_LINE_ENDINGS);
+    return mail(
+        $message['to'], mime_header_encode($message['subject']),
+        // Note: e-mail uses CRLF for line-endings. PHP's API requires LF
+        // on Unix and CRLF on Windows. Drupal automatically guesses the
+        // line-ending format appropriate for your system. If you need to
+        // override this, adjust $conf['mail_line_endings'] in settings.php.
+        preg_replace('@\r?\n@', $line_endings, $message['body']),
+        // For headers, PHP's API suggests that we use CRLF normally,
+        // but some MTAs incorrectly replace LF with CRLF. See #234403.
+        join("\n", $mimeheaders)
+    );
+  }
+
+}
+
+/**
+ * Implements hook_mail()
+ */
+function jjfusion_ap_hcp_events_mail($key, &$message, $params) {
+  $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings'));
+  if ($jc_ap_hcp_events_settings['site_cc_email'] != '' && $params['cc'] != '') {
+    $params['cc'] = $params['cc'] . ', ' . $jc_ap_hcp_events_settings['site_cc_email'];
+  }
+  elseif ($jc_ap_hcp_events_settings['site_cc_email'] != '' && $params['cc'] == '') {
+    $params['cc'] = $jc_ap_hcp_events_settings['site_cc_email'];
+  }
+  $message['headers']['MIME-version'] = '1.0';
+  $message['headers']['Content-Type'] = 'text/html; charset=utf-8';
+  $message['headers']['CC'] = $params['cc'];
+  $message['subject'] = $params['context']['subject'];
+  $message['body'][] = $params['context']['message'];
+}
+
+/**
+ * Implements hook_theme()
+ */
+function jjfusion_ap_hcp_events_theme() {
+  return array(
+    'eventlist' => array(
+      'variables' => array('data' => NULL),
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_events') . '/templates',
+      'template' => 'event-list',
+    ),
+    'eventdetail' => array(
+      'variables' => array("data" => NULL),
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_events') . '/templates',
+      'template' => 'event-detail',
+    ),
+    'speaker_tour_eventdetail' => array(
+      'variables' => array("data" => NULL),
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_events') . '/templates',
+      'template' => 'speaker-tour-event-detail',
+    ),
+    'pasteventdetail' => array(
+      'variables' => array("data" => NULL),
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_events') . '/templates',
+      'template' => 'past-event-detail',
+    ),
+    'janssenevents_top' => array(
+      'variables' => array('events' => NULL),
+      'template' => 'events-top3-list',
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_events') . '/templates',
+    ),
+    'jfusion_ap_hcp_events_transparency_report' => array(
+      'render element' => 'form',
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_events') . '/templates',
+      'template' => 'transparency-report',
+    ),
+    'multi_event_list' => array(
+      'variables' => array('events' => NULL),
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_events') . '/templates',
+      'template' => 'multi-event-list',
+    )
+  );
+}
+
+function jc_ap_hcp_eventlist() {
+  if (isset($_SESSION['suvery-submit']) && $_SESSION['suvery-submit'] == 'success') {
+    drupal_add_js(array('surveysuccess' => TRUE), 'setting');
+    unset($_SESSION['suvery-submit']);
+  }
+  return theme('eventlist', array('data' => jc_ap_hcp_events_list()));
+}
+
+function jc_ap_hcp_events_list($future_events = false) {
+  $params = array('hcpID' => $_SESSION['user-details']['accId'], 'survey' => 'false');
+  if ($future_events) {
+    $params['futureEvents'] = true;
+  }
+  $hcpevents = new HcpEvents();
+  $result_event_list = $hcpevents->getEventList($params);
+  $_SESSION['event_list_details'] = $result_event_list;
+  $event_list = array();
+  if (isset($result_event_list['eventOutput']) && !isset($result_event_list['eventOutput']['status']) && !isset($result_event_list['eventOutput']['statusCode'])) {
+
+    $result_event_output = array();
+    if (count($result_event_list['eventOutput']) == count($result_event_list['eventOutput'], COUNT_RECURSIVE)) {
+      $result_event_output[0] = $result_event_list['eventOutput'];
+    }
+    else {
+      $result_event_output = $result_event_list['eventOutput'];
+    }
+
+    // Seperate future and past events
+    if (count($result_event_output) > 0) {
+      foreach ($result_event_output as $event) {
+        if (strtotime($event['eventDate']) > strtotime("today")) {
+          $event_list['futureEvents'][] = $event;
+        }
+        else {
+          $event_list['pastEvents'][] = $event;
+        }
+      }
+    }
+  }
+  return $event_list;
+}
+
+function jc_ap_hcp_events_list_with_survey($future_events = false) {
+  $params = array('hcpID' => $_SESSION['user-details']['accId'], 'survey' => 'true');
+  if ($future_events) {
+    $params['futureEvents'] = true;
+  }
+  $hcpevents = new HcpEvents();
+  $result_event_list = $hcpevents->getEventList($params);
+
+  $_SESSION['event_list_details'] = $result_event_list;
+  $event_list = array();
+  if (isset($result_event_list['eventOutput']) && !isset($result_event_list['eventOutput']['status']) && !isset($result_event_list['eventOutput']['statusCode'])) {
+
+    $result_event_output = array();
+    if (count($result_event_list['eventOutput']) == count($result_event_list['eventOutput'], COUNT_RECURSIVE)) {
+      $result_event_output[0] = $result_event_list['eventOutput'];
+    }
+    else {
+      $result_event_output = $result_event_list['eventOutput'];
+    }
+
+    // Seperate future and past events
+    if (count($result_event_output) > 0) {
+      foreach ($result_event_output as $event) {
+        if (strtotime($event['eventDate']) > strtotime("today")) {
+          //$event_list['futureEvents'][] = $event;
+        }
+        else {
+          $event_list[] = $event['eventID'];
+        }
+      }
+    }
+  }
+  return $event_list;
+}
+
+function jc_ap_hcp_eventdetail($eventId) {
+
+  // Load the cTools library
+  ctools_include('modal');
+  ctools_modal_add_js();
+  $params = array('hcpID' => $_SESSION['user-details']['accId'], 'eventID' => $eventId);
+  $hcpevents = new HcpEvents();
+  $event_detail = $hcpevents->getEventDetail($params);
+  drupal_set_title($event_detail['eventName']);
+  $eName = $event_detail['eventName'];
+  $speakerEvents = array();
+  $speakerEvents = jc_ap_hcp_speakerEvent();
+  foreach ($speakerEvents as $key => $value) {
+    foreach ($value as $val) {
+      if ($eName == $val) {
+        $event_detail['sp_arg'] = $key;
+        $argum = $key;
+      }
+    }
+  }
+
+  if (isset($event_detail['status']) && $event_detail['status'] == 'No') {
+    if ($argum) {
+      return theme('speaker_tour_eventdetail', array('data' => $event_detail));
+    }
+    else {
+      return theme('eventdetail', array('data' => $event_detail));
+    }
+  }
+  if ($event_detail['eventStartTime']) {
+    $event_detail['formatEventTime'] = date("g:i a", strtotime($event_detail['eventStartTime']));
+  }
+  else {
+    $event_detail['formatEventTime'] = '';
+  }
+  $event_detail['formatEventDate'] = date("l d/m/Y", strtotime($event_detail['eventDate']));
+  $event_detail['eventDate'] = $event_detail['eventDate'];
+  $event_detail['formatMapAddress'] = $event_detail['venueName'] . ',' . $event_detail['venueStreet1'] . ',' . $event_detail['venueSuburb'] . ',' . $event_detail['venueState'] . $event_detail['venuePostCode'];
+  if ($argum) {
+    return theme('speaker_tour_eventdetail', array('data' => $event_detail));
+  }
+  else {
+    return theme('eventdetail', array('data' => $event_detail));
+  }
+}
+
+/* Function to check if the event is speaker event. */
+
+function jc_ap_hcp_speakerEvent() {
+  $allspeakerevents = taxonomy_get_term_by_name("Speaker Event");
+  $words_term = current($allspeakerevents);
+  $speaker_event_tid = $words_term->tid;
+  $speakerEventIds = array();
+  $speakerEventIds = taxonomy_select_nodes($speaker_event_tid, FALSE);
+  $speakerEventData = array();
+  $speakerEventTitle = array();
+  foreach ($speakerEventIds as $id) {
+    $speakerEventData[$id] = node_load($id);
+    $speakerEventTitle[$id] = $speakerEventData[$id]->body[LANGUAGE_NONE][0]['summary'];
+  }
+  foreach ($speakerEventTitle as $key => $val) {
+    $eventNamesStripped = strip_tags($val);
+    $eventNamesTrimmed = trim(preg_replace('/\n+/', '', $eventNamesStripped));
+    $eventNames_array = preg_split('/  +/', $eventNamesTrimmed);
+    $eventsFinal = array();
+    foreach ($eventNames_array as $value) {
+      $eventsFinal[] = trim($value);
+    }
+    $eventsFinallist[$key] = $eventsFinal;
+  }
+
+
+  return $eventsFinallist;
+}
+
+function jc_ap_hcp_speaker_eventdetail($eventId) {
+
+  // Load the cTools library
+  ctools_include('modal');
+  ctools_modal_add_js();
+
+  //0019000000R3MmC
+  $params = array('hcpID' => $_SESSION['user-details']['accId'], 'eventID' => $eventId);
+  $hcpevents = new HcpEvents();
+  $speaker_event_detail = $hcpevents->getEventDetail($params);
+  drupal_set_title($speaker_event_detail['eventName']);
+
+  if (isset($speaker_event_detail['status']) && $speaker_event_detail['status'] == 'No') {
+    return theme('speaker_tour_eventdetail', array('data' => $speaker_event_detail));
+  }
+  if ($speaker_event_detail['eventStartTime']) {
+    $speaker_event_detail['formatEventTime'] = date("g:i a", strtotime($speaker_event_detail['eventStartTime']));
+  }
+  else {
+    $speaker_event_detail['formatEventTime'] = '';
+  }
+  $speaker_event_detail['formatEventDate'] = date("l d/m/Y", strtotime($speaker_event_detail['eventDate']));
+  $speaker_event_detail['eventDate'] = $speaker_event_detail['eventDate'];
+  $speaker_event_detail['formatMapAddress'] = $speaker_event_detail['venueName'] . ',' . $speaker_event_detail['venueStreet1'] . ',' . $speaker_event_detail['venueSuburb'] . ',' . $speaker_event_detail['venueState'] . $speaker_event_detail['venuePostCode'];
+
+  return theme('speaker_tour_eventdetail', array('data' => $speaker_event_detail));
+}
+
+function jc_ap_hcp_pasteventdetail($eventId) {
+
+  // Load the cTools library
+  ctools_include('modal');
+  ctools_modal_add_js();
+  $params = array(
+    'hcpID' => $_SESSION['user-details']['accId'],
+    'eventID' => $eventId
+  );
+  $hcpevents = new HcpEvents();
+  $event_detail = $hcpevents->getEventDetail($params);
+  drupal_set_title($event_detail['eventName']);
+  if (isset($event_detail['status']) && $event_detail['status'] == 'No') {
+    return theme('eventdetail', array('data' => $event_detail));
+  }
+  if ($event_detail['eventStartTime']) {
+    $event_detail['formatEventTime'] = date("g:i a", strtotime($event_detail['eventStartTime']));
+  }
+  else {
+    $event_detail['formatEventTime'] = '';
+  }
+  $event_detail['formatEventDate'] = date("l d/m/Y", strtotime($event_detail['eventDate']));
+  $event_detail['eventDate'] = $event_detail['eventDate'];
+  $event_detail['formatMapAddress'] = $event_detail['venueName'] . ',' . $event_detail['venueStreet1'] . ',' . $event_detail['venueSuburb'] . ',' . $event_detail['venueState'] . $event_detail['venuePostCode'];
+  return theme('pasteventdetail', array('data' => $event_detail));
+}
+
+function jc_ap_hcp_eventrsvp($ajax, $eventID, $rsvpStatus) {
+
+  if ($ajax) {
+    ctools_include('ajax');
+    ctools_include('modal');
+
+    $form_state = array(
+      'ajax' => TRUE,
+      'title' => 'Confirming your RSVP',
+      'build_info' => array('args' => array('0' => $eventID, '1' => $rsvpStatus))
+    );
+
+    $output = ctools_modal_form_wrapper('event_rsvp_form', $form_state);
+    //echo $rsvpStatus;exit;
+    if ($rsvpStatus == RsvpStatus::CODE_DECLINED || $rsvpStatus == RsvpStatus::CODE_TENTATIVE) {
+      drupal_form_submit('event_rsvp_form', $form_state);
+    }
+
+    if (!empty($form_state['ajax_commands'])) {
+      $output = $form_state['ajax_commands'];
+    }
+
+    print ajax_render($output);
+    drupal_exit();
+  }
+  else {
+    return drupal_get_form('event_rsvp_form');
+  }
+}
+
+function event_rsvp_form($form, &$form_state, $eventID, $rsvpStatus) {
+
+  $form = array();
+  $form['eventId'] = array(
+    '#type' => 'value',
+    '#value' => $eventID
+  );
+  $form['rsvpStatus'] = array(
+    '#type' => 'hidden',
+    '#value' => $rsvpStatus,
+    '#attributes' => array('id' => 'rsvpStatus'),
+  );
+  $form['dietaryReq'] = array(
+    //'#prefix' => 'If you have special dietary requirements, please let us know below.',
+    '#type' => 'textarea',
+    '#attributes' => array('placeholder' => 'If you have special dietary requirements, please let us know.')
+  );
+  if ($_SESSION['speaker-details'] == 1) {
+    $form['parkingReq'] = array(
+      //'#prefix' => 'If you have special dietary requirements, please let us know below.',
+      '#type' => 'textarea',
+      '#attributes' => array('placeholder' => 'If you have Parking requirements, please let us know.')
+    );
+  }
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Confirm your attendance',
+    '#ajax' => array(
+      'callback' => 'event_rsvp_confirm_submit',
+      'event' => 'click',
+    )
+  );
+  return $form;
+}
+
+function event_rsvp_confirm_submit(&$form, &$form_state) {
+
+  global $user, $base_url;
+
+
+  $event_details = $_SESSION['event-details'];
+  $params = array(
+    'hcpID' => $_SESSION['user-details']['accId'],
+    'eventID' => $form_state['values']['eventId'],
+    'eventStatus' => RsvpStatus::getRsvpStatusByCode($form_state['values']['rsvpStatus']),
+    'dietaryReq' => $form_state['values']['dietaryReq']);
+  if ($form_state['values']['parkingReq'] != '') {
+    $params['parkingReq'] = $form_state['values']['parkingReq'];
+  }
+
+  $hcpevents = new HcpEvents();
+  $hcpevents->registerEvent($params);
+  $jc_ap_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  $email_params = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $event_name = $event_details['eventName'];
+  $event_time = $event_details['formatEventTime'] . ', ' . $event_details['formatEventDate'];
+  $event_venue = $event_details['venueName'] . ', ' . $event_details['venueStreet1'] . ', ' . $event_details['venueSuburb'] . ', ' . $event_details['venueState'] . ' ' . $event_details['venuePostCode'];
+
+  if ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_DECLINED) {
+    $replace_html = '<h4>You have declined this event. </h4><p> If you wish to join this event, please <a href="#" id="cancel">RSVP</a> here.</p>';
+    $message_to_host = t('HCP has declained the meeting invite.');
+  }
+  else if ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_TENTATIVE) {
+    $replace_html = '<h4>You maybe attending this event. </h4><p> <a href="#" id="cancel">Confirm or cancel your attendance</a> here.</p>';
+    $message_to_host = t('HCP has tentatively accepted the meeting invite.');
+  }
+  else {
+    $from = variable_get('site_mail', '');
+    $to = $user->name;
+
+    $params['context']['message'] = $email_params['rsvp_email']['body'];
+    $params['context']['subject'] = $email_params['rsvp_email']['subject'];
+    $params['context']['message'] = str_replace('\r\n', "\n", $params['context']['message']);
+    $params['context']['subject'] = str_replace('\r\n', "\n", $params['context']['subject']);
+    $params['context']['message'] = str_replace(array('[hcpuser:fname]', '[hcpuser:lname]', '[event_title]', '[event_time_date]', '[event_venue]', '[site:url]'), array($_SESSION['user-details']['firstName'], $_SESSION['user-details']['lastName'], $event_name, $event_time, $event_venue, $base_url), $params['context']['message']);
+    if ($jc_ap_hcp_profile_settings['iconnect_enable_phase2_features']) {
+      $jc_ap_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+      if ($jc_ap_hcp_profile_settings['site_cc_email'] != '' && $params['cc'] != '') {
+        $params['cc'] = $params['cc'] . ', ' . $jc_ap_hcp_profile_settings['site_cc_email'];
+      }
+      elseif ($jc_ap_hcp_profile_settings['site_cc_email'] != '' && $params['cc'] == '') {
+        $params['cc'] = $jc_ap_hcp_profile_settings['site_cc_email'];
+      }
+      //returns true or false
+      //p($_SESSION['event-details']);exit;
+      $event_date = date("Y-m-d", strtotime($_SESSION['event-details']['eventDate']));
+      $eventTimeF = date("H:i:s", strtotime($_SESSION['event-details']['formatEventTime']));
+      $event_timeD = $event_date . ' ' . $eventTimeF;
+      //p($eventTimeF);exit;
+      sendIcalEmail($_SESSION['user-details']['firstName'], $to, $event_timeD, $eventTimeF, $event_name, $params, $event_venue);
+    }
+    else {
+      drupal_mail('jjfusion_ap_hcp_events', 'rsvp', $to, language_default(), $params, $from);
+    }
+    $message_to_host = t('HCP has accepted the meeting invite.');
+    $replace_html = '<h4>You are attending this event</h4><p> If you can no longer attend this event, <a href="#" id="cancel">you can cancel your attendance</a> here.</p>';
+    if ($jc_ap_hcp_profile_settings['iconnect_enable_phase2_features']) {
+      $params['context']['message'] = $email_params['rsvp_mail_to_host']['body'];
+      $params['context']['subject'] = $email_params['rsvp_mail_to_host']['subject'];
+      $params['context']['message'] = str_replace(array('[hcpuser:fname]', '[hcpuser:lname]', '[event_title]', '[event_time_date]', '[event_venue]', '[site:url]', '[rsvpmessage]'), array($_SESSION['user-details']['firstName'], $_SESSION['user-details']['lastName'], $event_name, $event_time, $event_venue, $base_url, $message_to_host), $params['context']['message']);
+      for ($i = 1; $i <= 3; $i++) {
+        if (isset($event_details['rsvpInfo']['rsvp' . $i . 'Email'])) {
+          $to_email[] = $event_details['rsvpInfo']['rsvp' . $i . 'Email'];
+        }
+      }
+      $to = implode(',', $to_email);
+      drupal_mail('jjfusion_ap_hcp_events', 'rsvptohost', $to, language_default(), $params, $from);
+    }
+    $form_state['ajax_commands'][] = ajax_command_html("#rsvp-status", $replace_html);
+    $form_state['ajax_commands'][] = ajax_command_invoke(NULL, 'eventRSVPSuccess');
+    return array('#type' => 'ajax', '#commands' => $form_state['ajax_commands']);
+  }
+  $form_state['ajax_commands'][] = ajax_command_html("#rsvp-status", $replace_html);
+  $form_state['ajax_commands'][] = ajax_command_invoke(NULL, 'eventRSVPSuccess');
+  $form_state['ajax_commands'][] = ctools_modal_command_dismiss();
+}
+
+/**
+ * RSVP form submit.
+ */
+function event_rsvp_form_submit(&$form, &$form_state) {
+  global $base_url;
+  $event_details = $_SESSION['event-details'];
+  $params = array(
+    'hcpID' => $_SESSION['user-details']['accId'],
+    'eventID' => $form_state['values']['eventId'],
+    'eventStatus' => RsvpStatus::getRsvpStatusByCode($form_state['values']['rsvpStatus']),
+    'dietaryReq' => $form_state['values']['dietaryReq']);
+  if ($form_state['values']['parkingReq'] != '') {
+    $params['parkingReq'] = $form_state['values']['parkingReq'];
+  }
+  if ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_DECLINED) {
+    $hcpevents = new HcpEvents();
+    $hcpevents->registerEvent($params);
+    $message_to_host = t('HCP has declained the meeting invite.');
+    $replace_html = '<h4>You have declined this event. </h4><p> If you wish to join this event, please <a href="#" id="cancel">RSVP</a> here.</p>';
+  }
+  else if ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_TENTATIVE) {
+    $hcpevents = new HcpEvents();
+    $hcpevents->registerEvent($params);
+    $replace_html = '<h4>You maybe attending this event. </h4><p> <a href="#" id="cancel">Confirm or cancel your attendance</a> here.</p>';
+    $message_to_host = t('HCP has tentatively accepted the meeting invite.');
+  }
+  else {
+    return;
+  }
+  $jc_ap_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  if ($jc_ap_hcp_profile_settings['iconnect_enable_phase2_features']) {
+    $event_details = $_SESSION['event-details'];
+    $email_params = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+    $event_name = $event_details['eventName'];
+    $event_time = $event_details['formatEventTime'] . ', ' . $event_details['formatEventDate'];
+    $event_venue = $event_details['venueName'] . ', ' . $event_details['venueStreet1'] . ', ' . $event_details['venueSuburb'] . ', ' . $event_details['venueState'] . ' ' . $event_details['venuePostCode'];
+    $params['context']['message'] = $email_params['rsvp_mail_to_host']['body'];
+    $params['context']['subject'] = $email_params['rsvp_mail_to_host']['subject'];
+    $params['context']['message'] = str_replace(array('[hcpuser:fname]', '[hcpuser:lname]', '[event_title]', '[event_time_date]', '[event_venue]', '[site:url]', '[rsvpmessage]'), array($_SESSION['user-details']['firstName'], $_SESSION['user-details']['lastName'], $event_name, $event_time, $event_venue, $base_url, $message_to_host), $params['context']['message']);
+    for ($i = 1; $i <= 3; $i++) {
+      if (isset($event_details['rsvpInfo']['rsvp' . $i . 'Email'])) {
+        $to_email[] = $event_details['rsvpInfo']['rsvp' . $i . 'Email'];
+      }
+    }
+    $to = implode(',', $to_email);
+    drupal_mail('jjfusion_ap_hcp_events', 'rsvptohost', $to, language_default(), $params);
+  }
+  $form_state['ajax_commands'][] = ajax_command_html("#rsvp-status", $replace_html);
+  $form_state['ajax_commands'][] = ajax_command_invoke(NULL, 'eventRSVPSuccess');
+  $form_state['ajax_commands'][] = ctools_modal_command_dismiss();
+}
+
+function jjfusion_ap_hcp_events_permission() {
+  $permissions = array();
+  $permissions['access_veeva_events_configuration'] = array(
+    'title' => t('Access veeva Events configuration'),
+    'description' => t('Perform configurations for veeva events settings.'),
+  );
+  return $permissions;
+}
+
+function jc_ap_hcp_events_images($eventID) {
+  $event_images = taxonomy_get_term_by_name("Event-images");
+  $words_term = current($event_images);
+  $gallery_tid = $words_term->tid; //term id of event-images
+  $galleries = node_load_multiple(array(), array('type' => 'gallery'));   //node details of all gallery 
+  $nids = array();
+  foreach ($galleries as $key => $value) {
+    if (array_search($gallery_tid, array_column($value->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+      $nids[$galleries[$key]->nid] = $galleries[$key]->nid;
+    }
+  }
+  $random_key = array_rand($nids, 1);
+  $_SESSION['event-image'][$eventID] = $galleries[$key]->nid;
+  return file_create_url($galleries[$nids[$random_key]]->field_gallery_images[LANGUAGE_NONE][0]['uri']);
+}
+
+function jc_ap_hcp_event_detail_images() {
+  $event_images = taxonomy_get_term_by_name("Event-images");
+  $words_term = current($event_images);
+  $gallery_tid = $words_term->tid; //term id of event-images
+  $galleries = node_load_multiple(array(), array('type' => 'gallery'));   //node details of all gallery 
+  $nids = array();
+  foreach ($galleries as $key => $value) {
+    if (array_search($gallery_tid, array_column($value->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+      $nids[$galleries[$key]->nid] = $galleries[$key]->nid;
+    }
+  }
+  $random_key = array_rand($nids, 1);
+  return $nids[$random_key];
+}
+
+function past_event_form() {
+  $form['past_event']['comments'] = array(
+    '#type' => 'textarea',
+    '#prefix' => '<fieldset>',
+    '#title' => t('Add comments'),
+    '#required' => FALSE,
+    '#title_display' => 'invisible',
+    '#attributes' => array('placeholder' => (t('Please enter your comments'))),
+    '#resizable' => False,
+  );
+  $form['past_event']['eventid'] = array(
+    '#type' => 'hidden',
+    '#attributes' => array('id' => 'past-event-id')
+  );
+  $form['past_event']['submit'] = array(
+    '#attributes' => array('class' => array('btn')),
+    '#type' => 'submit',
+    '#value' => t("Submit"),
+    '#suffix' => '<div class="ajax-loader"></div></fieldset>',
+    '#executes_submit_callback' => FALSE,
+    "#ajax" => array(
+      "callback" => 'past_event_form_submit',
+      "event" => 'click',
+    )
+  );
+  return $form;
+}
+
+function past_event_form_submit(&$form, &$form_state) {
+  global $user, $base_url;
+  $_SESSION['past_event_add'] = $form_state['values'];
+  $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $to = $jc_ap_hcp_events_settings['info_mail'];
+  $added_comments = $_SESSION['past_event_add']['comments'];
+  $email_params = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $params = array('context' => array(
+      'subject' => $email_params['past_event_mail']['subject'],
+      'message' => $email_params['past_event_mail']['body'],
+  ));
+  $input = array('hcpID' => $_SESSION['user-details']['accId'], 'eventID' => $form_state['values']['eventid']);
+  $hcpevents = new HcpEvents();
+  $event_detail = $hcpevents->getEventDetail($input); //p($event_detail);exit;
+  $event_name = $event_detail['eventName'];
+  $event_time = $event_detail['eventStartTime'];
+  $event_venue = $event_detail['venueName'] . ', ' . $event_detail['venueStreet1'] . ', ' . $event_detail['venueSuburb'] . ', ' . $event_detail['venueState'] . ' ' . $event_detail['venuePostCode'];
+
+
+  $params['context']['message'] = str_replace(array('[hcpuser:fname]', '[hcpuser:lname]', '[hcpuser:email]', '[hcpuser:phone]', '[event_title]', '[event_time_date]', '[event_venue]', '[site:url]', '[comment_latest]'), array($_SESSION['user-details']['firstName'], $_SESSION['user-details']['lastName'], $user->name, $_SESSION['user-details']['phone'], $event_name, $event_time, $event_venue, $base_url, $added_comments), $params['context']['message']);
+  $params['context']['message'] = str_replace('\r\n', "\n", $params['context']['message']);
+  $params['context']['subject'] = str_replace('\r\n', "\n", $params['context']['subject']);
+
+  $from = variable_get('site_mail', '');
+  $params['cc'] = variable_get('site_mail', '');
+  drupal_mail('jjfusion_ap_hcp_events', 'past_events', $to, language_default(), $params, $from);
+  $commands[] = ajax_command_invoke(NULL, 'pasteventMailSuccess');
+  return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+function jc_ap_hcp_eventsurvey($eventid) {
+
+  return drupal_get_form('event_survey_form');
+}
+
+function event_survey_form($form, &$form_state, $formid) {//p($form);
+  $hcpevents = new HcpEvents();
+  $result_event_survey = $hcpevents->getSurvey();
+
+  $survey_types = array('Picklist_vod' => 'select', 'Radio_vod' => 'radios', 'Number_vod' => 'textfield', 'Multiselect_vod' => 'checkboxes', 'Long_Text_vod' => 'textarea', 'Text_vod' => 'textfield', 'Date_vod' => 'date_popup', 'Datetime_vod' => 'date_popup', 'Decimal_vod' => 'textfield');
+  $form = array();
+  foreach ($result_event_survey['lstSurveyQues'] as $survey_que) {//p($survey_que);
+    $form[$survey_que['surveyQuesID']] = array(
+      '#prefix' => '<fieldset>',
+      '#type' => $survey_types[$survey_que['questionType']],
+      '#title' => $survey_que['questionText'],
+      '#required' => ($survey_que['required'] == 'true' ? TRUE : FALSE),
+      '#required_error' => t('Please answer the question.'),
+      '#suffix' => '</fieldset>',
+    );
+    $survey_options = array();
+
+    if ($survey_types[$survey_que['questionType']] == 'select' || $survey_types[$survey_que['questionType']] == 'radios' || $survey_types[$survey_que['questionType']] == 'checkboxes') {
+      foreach ($survey_que['lstAnsChoice'] as $ans_options) {
+        $survey_options[$ans_options['value']] = $ans_options['value'];
+      }
+      $form[$survey_que['surveyQuesID']]['#options'] = $survey_options;
+      $form[$survey_que['surveyQuesID']]['#empty_option'] = 'Select';
+    }
+    if ($survey_types[$survey_que['questionType']] == 'checkboxes') {
+
+      $form[$survey_que['surveyQuesID']]['#multiple'] = TRUE;
+    }
+    if ($survey_que['questionType'] == 'Date_vod') {
+
+      $form[$survey_que['surveyQuesID']] = array(
+        '#prefix' => '<fieldset>',
+        '#title' => $survey_que['questionText'],
+        '#required' => ($survey_que['required'] == 'true' ? TRUE : FALSE),
+        '#type' => 'date_popup',
+        '#default_value' => !empty($form_state["values"][$survey_que['surveyQuesID']]) ? $form_state["values"][$survey_que['surveyQuesID']] : '',
+        '#date_format' => 'd-m-Y',
+        '#date_year_range' => '-100:+100',
+        '#suffix' => '</fieldset>',
+      );
+    }
+
+    if ($survey_que['questionType'] == 'Datetime_vod') {
+
+      $form[$survey_que['surveyQuesID']] = array(
+        '#prefix' => '<fieldset>',
+        '#title' => $survey_que['questionText'],
+        '#required' => ($survey_que['required'] == 'true' ? TRUE : FALSE),
+        '#type' => 'date_popup',
+        '#time_12' => TRUE,
+        '#default_value' => !empty($form_state["values"][$survey_que['surveyQuesID']]) ? $form_state["values"][$survey_que['surveyQuesID']] : '',
+        '#date_format' => 'd-m-Y h:i A',
+        '#date_year_range' => '-100:+100',
+        '#suffix' => '</fieldset>',
+      );
+    }
+
+    if ($survey_que['questionType'] == 'Description_vod') {
+
+      $form[$survey_que['surveyQuesID']] = array(
+        '#prefix' => '<fieldset>',
+        '#title' => $survey_que['questionText'],
+        '#required' => ($survey_que['required'] == 'true' ? TRUE : FALSE),
+        '#type' => 'item',
+        '#suffix' => '</fieldset>',
+      );
+    }
+
+    if ($survey_que['questionType'] == 'Number_vod') {
+
+      $form[$survey_que['surveyQuesID']]['#attributes'] = array('onkeyup' => "this.value = this.value.replace (/[^0-9+]/g,'')");
+    }
+  }
+  $form['survey_input'] = array(
+    '#type' => 'value',
+    '#value' => $result_event_survey,
+  );
+  $form['submit'] = array(
+    '#prefix' => '<fieldset>',
+    '#type' => 'submit',
+    '#value' => 'Submit',
+    '#attributes' => array('class' => array('btn', 'submit', 'final-submit')),
+    '#suffix' => '</fieldset>',
+  );
+  $form['#prefix'] = '<header class="short clouds">
+	<h1>' . $result_event_survey['surveyName'] . '</h1>
+</header><div class="wrapper"><div class="content">';
+  $form['#suffix'] = '</div></div>';
+  return $form;
+}
+
+/**
+ * Event survey form submit.
+ */
+function event_survey_form_submit($form, &$form_state, $formid) {
+  $hcpevents = new HcpEvents();
+  $form_state['values']['survey_input']['hcpID'] = $_SESSION['user-details']['accId'];
+
+
+  foreach ($form_state['values']['survey_input']['lstSurveyQues'] as $key => $survey_que) {
+    if ($survey_que['questionType'] == 'Text_vod') {
+      $form_state['values']['survey_input']['lstSurveyQues'][$key]['text'] = $form_state['values'][$survey_que['surveyQuesID']];
+    }
+    else if ($survey_que['questionType'] == 'Long_Text_vod') {
+      $form_state['values']['survey_input']['lstSurveyQues'][$key]['longText'] = $form_state['values'][$survey_que['surveyQuesID']];
+    }
+    else if ($survey_que['questionType'] == 'Date_vod') {
+      if (isset($form_state["values"][$survey_que['surveyQuesID']]) && $form_state["values"][$survey_que['surveyQuesID']] != "") {
+        $date_ans = strtotime($form_state['values'][$survey_que['surveyQuesID']]);
+        $form_state['values']['survey_input']['lstSurveyQues'][$key]['date'] = date("d/m/Y", $date_ans);
+      }
+    }
+    else if ($survey_que['questionType'] == 'Datetime_vod') {
+      if (isset($form_state["values"][$survey_que['surveyQuesID']]) && $form_state["values"][$survey_que['surveyQuesID']] != "") {
+        $datetime_ans = strtotime($form_state['values'][$survey_que['surveyQuesID']]);
+        $form_state['values']['survey_input']['lstSurveyQues'][$key]['dateTime'] = date("d/m/Y G:i:s", $datetime_ans);
+      }
+    }
+    else if ($survey_que['questionType'] == 'Number_vod') {
+      $form_state['values']['survey_input']['lstSurveyQues'][$key]['number'] = $form_state['values'][$survey_que['surveyQuesID']];
+    }
+    else if ($survey_que['questionType'] == 'Multiselect_vod') {
+      $form_state['values']['survey_input']['lstSurveyQues'][$key]['response'] = implode(';', $form_state['values'][$survey_que['surveyQuesID']]);
+    }
+    else {
+      $form_state['values']['survey_input']['lstSurveyQues'][$key]['response'] = $form_state['values'][$survey_que['surveyQuesID']];
+    }
+  }
+
+  $form_state['values']['survey_input']['lstSurveyResponse'] = $form_state['values']['survey_input']['lstSurveyQues'];
+  unset($form_state['values']['survey_input']['lstSurveyQues']);
+  $hcpevents->saveSurvey($form_state['values']['survey_input']);
+  $_SESSION['suvery-submit'] = 'success';
+  drupal_goto('event-list');
+}
+
+/**
+ * Function to send email as calender
+ * 
+ * @param type $firstname
+ * @param type $to
+ * @param type $event_time
+ * @param type $event_name
+ * @param type $params
+ * @param type $event_venue
+ * @return boolean
+ */
+function sendIcalEmail($firstname, $to, $event_timeD, $eventTimeF, $event_name, $params, $event_venue) {
+
+  $from_address = variable_get('site_mail', '');
+  $subject = $event_name; //Doubles as email subject and meeting subject in calendar
+  $meeting_location = $event_venue; //Where will your meeting take place
+  $meeting_duration = 3600;
+
+  //Convert MYSQL datetime and construct iCal start, end and issue dates
+  $meetingstamp = strtotime($event_timeD . " UTC");
+  //$meetingstamp = $eventTimeF;   
+  $dtstart = gmdate("Ymd\THis\Z", $meetingstamp);
+  $dtend = gmdate("Ymd\THis\Z", $meetingstamp + $meeting_duration);
+  $todaystamp = gmdate("Ymd\THis\Z");
+
+  //Create unique identifier
+  $cal_uid = date('Ymd') . 'T' . date('His') . "-" . rand() . "@mydomain.com";
+
+  //Create Mime Boundry
+  $mime_boundary = "----Meeting Booking----" . md5(time());
+
+  //Create Email Headers
+  $headers = "Cc: " . $params['cc'] . "\n";
+  $headers .= "From: " . $from_address . "\n";
+  $headers .= "MIME-Version: 1.0\n";
+  $headers .= "Content-Type: multipart/alternative; boundary=\"$mime_boundary\"\n";
+  $headers .= "Content-class: urn:content-classes:calendarmessage\n";
+
+  //Create Email Body (HTML)
+  $message = '';
+  $message .= "--$mime_boundary\n";
+  $message .= "Content-Type: text/html; charset=UTF-8\n";
+  $message .= "Content-Transfer-Encoding: 8bit\n\n";
+  $message .= "<html>\n";
+  $message .= "<body>\n";
+
+  $message .= $params['context']['message'];
+  $message .= "</body>\n";
+  $message .= "</html>\n";
+  $message .= "--$mime_boundary\n";
+
+  //Create ICAL Content (Google rfc 2445 for details and examples of usage) 
+  $ical = 'BEGIN:VCALENDAR
+PRODID:-//Microsoft Corporation//Outlook 12.0 MIMEDIR//EN
+VERSION:2.0
+METHOD:PUBLISH
+BEGIN:VEVENT
+ORGANIZER:MAILTO:' . $from_address . '
+DTSTART:' . $dtstart . '
+DTEND:' . $dtend . '
+LOCATION:' . $meeting_location . '
+TRANSP:OPAQUE
+SEQUENCE:0
+UID:' . $cal_uid . '
+DTSTAMP:' . $todaystamp . '
+SUMMARY:' . $subject . '
+PRIORITY:5
+CLASS:PUBLIC
+END:VEVENT
+END:VCALENDAR';
+
+  $message .= 'Content-Type: text/calendar;name="meeting.ics";method=REQUEST;charset=utf-8\n';
+  $message .= 'Content-Type: text/calendar;name="meeting.ics";method=REQUEST\n';
+  $message .= "Content-Transfer-Encoding: 8bit\n\n";
+  $message .= $ical;
+
+  //SEND MAIL
+  $mail_sent = @mail($to, $subject, $message, $headers);
+
+  if ($mail_sent) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+function janssen_top3_events($type = '') {
+  $events = jc_ap_hcp_events_list();
+  if ($events == '') {
+    $events['futureEvents'] = array();
+  }
+  if (count($events['futureEvents']) < 3) {
+    $industry_events = views_get_view_result('industry_events');
+    $jfusion_ap_hcp_events_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+    $all_therapy_value = $jfusion_ap_hcp_events_settings['jnj_veeva_hcp_all_therapy_area_value'];
+    $top_ind_events = array();
+    if (isset($_SESSION['user-details'])) {
+      $therapyArea = $_SESSION['user-details']['therapyArea'];
+    }
+    foreach ($industry_events as $event) {
+      $user_therapy = false;
+      foreach ($event->field_field_therapy_area as $therapy) {
+        if ($therapy['raw']['value'] == $therapyArea || $therapyArea == $all_therapy_value) {
+          $user_therapy = true;
+        }
+      }
+      if ($user_therapy) {
+        $top_ind_events[] = array('eventName' => $event->node_title, 'eventType' => 'industry', 'eventDate' => render($event->field_field_event_time), 'eventURL' => render($event->field_field_event_link));
+      }
+    }
+    if (isset($events['futureEvents']) && is_array($events['futureEvents'])) {
+      $events['futureEvents'] = array_merge($events['futureEvents'], $top_ind_events);
+    }
+    elseif ($top_ind_events != '' && count($top_ind_events) > 0) {
+      $events['futureEvents'] = $top_ind_events;
+    }
+  }
+  if (isset($events['futureEvents']) && is_array($events['futureEvents'])) {
+    $top_3_events = array_slice($events['futureEvents'], 0, 3);
+  }
+  if ($type == 'ajax') {
+    print theme('janssenevents_top', array('events' => $top_3_events));
+    exit();
+  }
+  return theme('janssenevents_top', array('events' => $top_3_events));
+}
+
+function janssen_top3_events_wrapper() {
+  return '<div class="top_3_events"></div>';
+}
+
+function janssen_multi_events($future_events = false) {
+  $eventNames = $_SESSION['eventNames'];
+  $eventNamesStripped = strip_tags($eventNames);
+  $eventNamesTrimmed = trim(preg_replace('/\n+/', '', $eventNamesStripped));
+  $eventNames_array = preg_split('/  +/', $eventNamesTrimmed);
+  $eventsFinal = array();
+  foreach ($eventNames_array as $a) {
+    $eventsFinal[] = trim($a);
+  }
+  $params = array('hcpID' => $_SESSION['user-details']['accId'], 'survey' => 'false');
+  if ($future_events) {
+    $params['futureEvents'] = true;
+  }
+  $hcpevents = new HcpEvents();
+  $result_event_list = $hcpevents->getEventList($params);
+  $_SESSION['multi_event_list_details'] = $result_event_list;
+  $mul_events = array();
+  if (isset($result_event_list['eventOutput']) && !isset($result_event_list['eventOutput']['status']) && !isset($result_event_list['eventOutput']['statusCode'])) {
+
+    $result_event_output = array();
+    if (count($result_event_list['eventOutput']) == count($result_event_list['eventOutput'], COUNT_RECURSIVE)) {
+      $result_event_output[0] = $result_event_list['eventOutput'];
+    }
+    else {
+      $result_event_output = $result_event_list['eventOutput'];
+    }
+    // Seperate future and past events
+    if (count($result_event_output) > 0) {
+      foreach ($result_event_output as $event) {
+        if (in_array($event['eventName'], $eventsFinal)) {
+          if (strtotime($event['eventDate']) > strtotime("today")) {
+            $mul_events['futureEvents'][] = $event;
+          }
+          else {
+            $mul_events['pastEvents'][] = $event;
+          }
+        }
+      }
+    }
+  }
+  //p($eventNames_array);
+  return theme('multi_event_list', array('events' => $mul_events));
+}
+
+/**
+ * Transparency report
+ */
+function jfusion_ap_hcp_events_transparency_report() {
+  $result = array();
+  $params = array("accId" => (isset($_SESSION['user-details']) ? $_SESSION['user-details']['accId'] : ''));
+  // Call service to create profile
+  $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $trasparency_report_filter_options = array();
+  $filterrange = $review_by_date = '';
+  $query_params = drupal_get_query_parameters();
+  if (isset($query_params['filter']) && $query_params['filter'] != '') {
+    $filterrange = $query_params['filter'];
+  }
+  foreach (preg_split("/((\r?\n)|(\r\n?))/", $jc_ap_hcp_events_settings['trasparency_report_filter']) as $filter_key => $filter_option) {
+    $option_split = explode('||', $filter_option);
+    if ($filter_key == 0 && $filterrange == '') {
+      $filterrange = $option_split[0];
+      $review_by_date = $option_split[2];
+    }
+    if ($filterrange == $option_split[0]) {
+      $review_by_date = $option_split[2];
+    }
+    $trasparency_report_filter_options[$option_split[0]] = $option_split[1];
+  }
+  $expired = false;
+  if (strtotime($review_by_date) < strtotime(date("m/d/Y", time()))) {
+    $expired = true;
+  }
+
+  $filter_start_end = explode('/', $filterrange);
+  $params['periodStartDate'] = $filter_start_end[0];
+  $params['periodEndDate'] = $filter_start_end[1];
+  if ($params['accId'] != '') {
+    $hcpevents = new HcpEvents();
+    $result = $hcpevents->getTransparencyReportList($params);
+  }
+  $form = array();
+  $form['filter'] = array(
+    '#type' => 'select',
+    '#options' => $trasparency_report_filter_options,
+    '#default_value' => $filterrange,
+  );
+  if (isset($_SESSION['transparency_report']) && $_SESSION['transparency_report'] == 'success') {
+    unset($_SESSION['transparency_report']);
+    $form['transparency_report_success'] = array(
+      '#type' => 'hidden',
+      '#value' => 1,
+      '#attributes' => array('id' => 'edit-transparency-report-success'),
+    );
+  }
+  if (isset($_SESSION['transparency_report_nomail']) && $_SESSION['transparency_report_nomail'] == 'success') {
+    unset($_SESSION['transparency_report']);
+    unset($_SESSION['transparency_report_nomail']);
+    $form['transparency_report_success'] = array(
+      '#type' => 'hidden',
+      '#value' => 1,
+      '#attributes' => array('id' => 'edit-transparency-report-nomail-success'),
+    );
+  }
+
+  if ($result['eventListCount'] == 1) {
+    $result['eventList'] = array($result['eventList']);
+  }
+  usort($result['eventList'], function($a, $b) {
+    if (strtotime($a['startDate']) == strtotime($b['startDate']))
+      return 0;
+    return strtotime($a['startDate']) > strtotime($b['startDate']) ? 1 : -1;
+  });
+  //$query_satus = array('Submitted' => t('Query Submited'), 'In Progress'=> t('Query In Progress'), 'Resolved' => t('Query Resolved'));
+  if (is_array($result['eventList']) && count($result['eventList']) > 0) {
+    foreach ($result['eventList'] as $key => $list) {
+      if ($list['expenseListCount'] == 1) {
+        $result['eventList'][$key]['expenseList'] = array($list['expenseList']);
+        $list['expenseList'] = array($list['expenseList']);
+      }
+      foreach ($list['expenseList'] as $expense_val) {
+        $form[$expense_val['budgetID']]['querySelect_' . $expense_val['budgetID']] = array(
+          '#type' => 'checkbox',
+          '#title' => ($expense_val['queryStatus'] == 'None' ? '' : $expense_val['queryStatus']),
+          '#default_value' => ($expense_val['querySelect'] == 'true' ? 1 : 0),
+          '#attributes' => array('data-bid' => $expense_val['budgetID']),
+        );
+        $form[$expense_val['budgetID']]['publishByName_' . $expense_val['budgetID']] = array(
+          '#type' => 'radios',
+          '#options' => array('Yes' => 'Yes', 'No' => 'No'),
+          '#default_value' => $expense_val['publishByName'],
+        );
+        $form[$expense_val['budgetID']]['comments_' . $expense_val['budgetID']] = array(
+          '#type' => 'textarea',
+          '#attributes' => array('placeholder' => t('Please enter an explanation for your query on this item')),
+          '#default_value' => $expense_val['comments'],
+        );
+        if ($expired) {
+          $form[$expense_val['budgetID']]['querySelect_' . $expense_val['budgetID']]['#disabled'] = true;
+          $form[$expense_val['budgetID']]['publishByName_' . $expense_val['budgetID']]['#disabled'] = true;
+          $form[$expense_val['budgetID']]['comments_' . $expense_val['budgetID']]['#disabled'] = true;
+        }
+        if ($expense_val['querySelect'] == 'true') {
+          $form[$expense_val['budgetID']]['querySelect_' . $expense_val['budgetID']]['#disabled'] = true;
+        }
+      }
+      if (!$expired) {
+        $form[$list['eventConsultingID']]['submit_' . $list['eventConsultingID']] = array(
+          '#type' => 'submit',
+          '#value' => t('Submit'),
+          '#name' => 'submit-' . $list['eventConsultingID'],
+          '#submit' => array('jfusion_ap_hcp_events_transparency_report_submit'),
+          '#attributes' => array('data-eventid' => $list['eventConsultingID']),
+        );
+      }
+    }
+  }
+  $form['eventDetails'] = array(
+    '#type' => 'item',
+    '#values' => $result['eventList']
+  );
+  $form['submitedBudget'] = array(
+    '#type' => 'hidden',
+    '#value' => '0',
+    '#attributes' => array('id' => 'submitedBudget'),
+  );
+  return $form;
+}
+
+function jfusion_ap_hcp_events_transparency_report_submit($form, &$form_state) {
+  $values = $form_state['values'];
+  $submitedevent = check_plain($_POST['submitedBudget']);
+  $params = array();
+  foreach ($form['eventDetails']['#values'] as $trans_report) {
+    if ($submitedevent == $trans_report['eventConsultingID']) {
+      foreach ($trans_report['expenseList'] as $expenseList) {
+        $publishedByName = $values['publishByName_' . $expenseList['budgetID']];
+        $comments = $values['comments_' . $expenseList['budgetID']];
+        $querySelect = ($values['querySelect_' . $expenseList['budgetID']] == '1' ? 'true' : 'false');
+        $budget_submit = array();
+        if ($publishedByName != $expenseList['publishByName']) {
+          $budget_submit['publishByName'] = $publishedByName;
+          $budget_submit['budgetID'] = $expenseList['budgetID'];
+        }
+        if ($querySelect != $expenseList['querySelect']) {
+          $budget_submit['querySelect'] = $querySelect;
+          $budget_submit['budgetID'] = $expenseList['budgetID'];
+        }
+        if ($comments != $expenseList['comments'] && $comments != 'Please enter an explanation for your query on this item') {
+          $budget_submit['comments'] = $values['comments_' . $expenseList['budgetID']];
+          $budget_submit['budgetID'] = $expenseList['budgetID'];
+        }
+        if (count($budget_submit) > 0) {
+          $params['expenseList'][] = $budget_submit;
+        }
+      }
+    }
+  }
+
+  foreach ($form['eventDetails']['#values'] as $trans_report) {
+    if ($submitedevent == $trans_report['eventConsultingID']) {
+      $mailTitle = $trans_report['eventTitle'];
+      $mailDate = ($trans_report['startDate'] != '' ? date("d/m/Y", strtotime($trans_report['startDate'])) : '') . (($trans_report['endDate'] != '' && (date("d/m/Y", strtotime($trans_report['endDate'])) != date("d/m/Y", strtotime($trans_report['startDate'])))) ? ' - ' . date("d/m/Y", strtotime($trans_report['endDate'])) : '');
+      $mailportalType = $trans_report['portalTypeEvent'];
+      $maileventId = $trans_report['eventName'];
+      foreach ($trans_report['expenseList'] as $expenseList) {
+        $querycommentsUpdate = $values['comments_' . $expenseList['budgetID']];
+        $querymailSelect = ($values['querySelect_' . $expenseList['budgetID']] == '1' ? 'true' : 'false');
+        if ($querymailSelect != $expenseList['querySelect'] || ($querycommentsUpdate != $expenseList['comments'] && $querycommentsUpdate != 'Please enter an explanation for your query on this item')) {
+          $paymentmailType[] = $expenseList['expenseType'];
+          $paymentmailAmount[] = $expenseList['actualAmount'];
+          $querymailComments[] = $values['comments_' . $expenseList['budgetID']];
+          $notification = "true";
+        }
+      }
+    }
+  }
+
+  $hcpevents = new HcpEvents();
+  $result = $hcpevents->submitTransparencyReport($params);
+  if ($result['statusCode'] == 'STS-TR-101') {
+    if ($notification == 'true') {
+      $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+      $from = variable_get('site_mail', '');
+      $to = $jc_ap_hcp_events_settings['transparency_to_email'];
+      $prefix = '';
+      $amountPrefix = '';
+      $queryPrefix = '';
+      $finalpaymentType = '';
+      $finalpaymentAmount = '';
+      $finalpaymentComments = '';
+      foreach ($paymentmailType as $Value) {
+        $finalpaymentType .= $prefix . '"' . $Value . '"';
+        $prefix = ', ';
+      }
+      foreach ($paymentmailAmount as $Value) {
+        $finalpaymentAmount .= $amountPrefix . '"' . $Value . '"';
+        $amountPrefix = ', ';
+      }
+      foreach ($querymailComments as $Value) {
+        $finalpaymentComments .= $queryPrefix . '"' . $Value . '"';
+        $queryPrefix = ', ';
+      }
+      $email_transparency_params = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+      $params['context']['message'] = $email_transparency_params['transparency_user_email']['body'];
+      $params['context']['subject'] = $email_transparency_params['transparency_user_email']['subject'];
+      $params['context']['message'] = str_replace('\r\n', "\n", $params['context']['message']);
+      $params['context']['subject'] = str_replace('\r\n', "\n", $params['context']['subject']);
+      $params['context']['message'] = str_replace(array('[hcpuser:fname]', '[hcpuser:lname]', '[event_title]', '[event_time_date]', '[service_type]', '[iconnectevent_id]', '[paymentType]', '[paymentAmount]', '[query_comments]'), array($_SESSION['user-details']['firstName'], $_SESSION['user-details']['lastName'], $mailTitle, $mailDate, $mailportalType, $maileventId, $finalpaymentType, $finalpaymentAmount, $finalpaymentComments), $params['context']['message']);
+      drupal_mail('jjfusion_ap_hcp_events', 'transparency', $to, language_default(), $params, $from);
+    }
+    else {
+      $_SESSION['transparency_report_nomail'] = 'success';
+    }
+    $_SESSION['transparency_report'] = 'success';
+  }
+}
+
+function jfusion_ap_hcp_events_transparency_report_download($accId = '') {
+  $result = array();
+  $params = array("accId" => (isset($_SESSION['user-details']) ? $_SESSION['user-details']['accId'] : trim($accId)));
+  // Call service to create profile
+  $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $filterrange = '';
+  $query_params = drupal_get_query_parameters();
+  if (isset($query_params['filter']) && $query_params['filter'] != '') {
+    $filterrange = $query_params['filter'];
+  }
+  foreach (preg_split("/((\r?\n)|(\r\n?))/", $jc_ap_hcp_events_settings['trasparency_report_filter']) as $filter_key => $filter_option) {
+    $option_split = explode('||', $filter_option);
+    if ($filter_key == 0 && $filterrange == '') {
+      $filterrange = $option_split[0];
+    }
+    if ($filterrange == $option_split[0]) {
+      $reporting_period = $option_split[3];
+    }
+  }
+
+  $filter_start_end = explode('/', $filterrange);
+  $params['periodStartDate'] = $filter_start_end[0];
+  $params['periodEndDate'] = $filter_start_end[1];
+
+  if ($params['accId'] != '') {
+    $hcpevents = new HcpEvents();
+    $result = $hcpevents->getTransparencyReportList($params);
+  }
+  if ($result['eventListCount'] == 1) {
+    $result['eventList'] = array($result['eventList']);
+  }
+  usort($result['eventList'], function($a, $b) {
+    if (strtotime($a['startDate']) == strtotime($b['startDate']))
+      return 0;
+    return strtotime($a['startDate']) > strtotime($b['startDate']) ? 1 : -1;
+  });
+  if (is_array($result['eventList']) && count($result['eventList']) > 0) {
+    $registration_fee_no = $travel_accomodation_fee_no = $fee_for_service_fee_no = '';
+    foreach ($result['eventList'] as $key => $list) {
+      $expense_count = 0;
+      if ($list['expenseListCount'] == 1) {
+        $result['eventList'][$key]['expenseList'] = array($list['expenseList']);
+        $list['expenseList'] = array($list['expenseList']);
+      }
+      $payment_made_to = '';
+      $registration_fee = $travel_accomodation_fee = $fee_for_service_fee = '';
+
+      $travel_accomodation_list = array(
+        'Accommodation - Speaker/Consultant',
+        'Accommodation - Attendee',
+        'Travel - Speaker/Consultant',
+        'Travel - Attendee',
+      );
+      $fee_for_service_list = array(
+        'Consultancy',
+        'Speaker honorarium'
+      );
+      $payment_made_to_list = array();
+      foreach ($list['expenseList'] as $expense_val) {
+        if (!in_array($expense_val['paymentMadeTo'], $payment_made_to_list)) {
+          $payment_made_to .= '<p>' . $expense_val['paymentMadeTo'] . '</p>';
+          $payment_made_to_list[] = $expense_val['paymentMadeTo'];
+        }
+        if ($expense_val['expenseType'] == 'Registration Fee') {
+          if ($expense_val['publishByName'] == 'Yes') {
+            $registration_fee = $registration_fee + $expense_val['actualAmount'];
+            $expense_count++;
+          }
+          else {
+            $registration_fee_no = $registration_fee_no + $expense_val['actualAmount'];
+          }
+        }
+
+        if (in_array($expense_val['expenseType'], $travel_accomodation_list)) {
+          if ($expense_val['publishByName'] == 'Yes') {
+            $expense_count++;
+            $travel_accomodation_fee = $travel_accomodation_fee + $expense_val['actualAmount'];
+          }
+          else {
+            $travel_accomodation_fee_no = $travel_accomodation_fee_no + $expense_val['actualAmount'];
+          }
+        }
+
+        if (in_array($expense_val['expenseType'], $fee_for_service_list)) {
+          if ($expense_val['publishByName'] == 'Yes') {
+            $expense_count++;
+            $fee_for_service_fee = $fee_for_service_fee + $expense_val['actualAmount'];
+          }
+          else {
+            $fee_for_service_fee_no = $fee_for_service_fee_no + $expense_val['actualAmount'];
+          }
+        }
+      }
+      $report_list = '';
+      if ($expense_count > 0) {
+        $report_list .= '<tr>				
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">
+					<p style="margin-top: 0;margin-bottom: 5px;">' . ($list['startDate'] != '' ? date("F Y", strtotime($list['startDate'])) : '') . ($list['endDate'] != '' ? ' - ' . date("F Y", strtotime($list['endDate'])) : '') . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top"><p style="margin-top: 0;margin-bottom: 5px;">' . $result['lastName'] . ', ' . $result['firstName'] . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">
+					<p style="margin-top: 0;margin-bottom: 5px;">' . $result['hcpType'] . '</p>
+					</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $result['hcpAddress1'] . '<br/>' . $result['hcpSuburb'] . '<br/> ' . $result['hcpState'] . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $list['portalTypeService'] . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $list['portalTypeEvent'] . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $payment_made_to . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($registration_fee ? '$' . number_format($registration_fee, 2) : '') . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($travel_accomodation_fee ? '$' . number_format($travel_accomodation_fee, 2) : '') . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($fee_for_service_fee ? '$' . number_format($fee_for_service_fee, 2) : '') . '</td>
+				</tr>';
+      }
+    }
+  }
+  require_once(drupal_get_path('module', 'jjfusion_ap_hcp_events') . "/libraries/dompdf/dompdf_config.inc.php");
+  $data = '<!DOCTYPE html>
+<html>
+<head>
+<title>' . t('HCP Payments and Transfer of value (ToV) Report for the period ') . $reporting_period . '</title>
+</head>
+<body>
+	<div class="wrapper" style="width: 700px;margin: 0px;">
+  <p style="font-size:9px;margin:0px;font-family: Arial;">' . t('HCP Payments and Transfer of value (ToV) Report for the period ') . $reporting_period . '</p>
+  <p style="font-size:9px;margin:0px;font-family: Arial;margin-bottom:10px;">Company Name: Janssen</p>
+		<table border="1" cellpadding="0" cellspacing="0" width="100%">
+			<thead>
+				<tr>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Date of event<br/> or provision<br/> of service</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Full name of<br/> HCP</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Type of HCP</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Practice<br/> Address</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Type of Service</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 70px;">Type of Event or<br/> Activity</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Payment<br/> made to:</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 40px;">Registration<br/> Fees</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Air Travel & <br/> Accommodation<br/> costs</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 40px;">Fees for<br/> Service and<br/> Consultancy</td>
+				</tr>
+			</thead>
+			<tbody>' . $report_list . '</tbody>
+			<tfoot>
+				<tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="10">Aggregate total of ToVs where HCPs have not consented to data being reported individually</td>
+				</tr>
+				<tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="6">Aggregate ToVs</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($registration_fee_no ? '$' . number_format($registration_fee_no, 2) : '') . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($travel_accomodation_fee_no ? '$' . number_format($travel_accomodation_fee_no, 2) : '') . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($fee_for_service_fee_no ? '$' . number_format($fee_for_service_fee_no, 2) : '') . '</td>
+				</tr>
+        <tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="2">Aggregate number of HCPs</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				</tr>
+				
+			</tfoot>
+		</table>
+    <div style="position: absolute;bottom: 10px; left: 10px; border-top:1px solid gray;">Footer content</div>
+	</div>
+</body>
+</html>';
+  //echo $data;
+  $dompdf = new DOMPDF;
+  $dompdf->load_html($data);
+  $dompdf->render();
+  $dompdf->stream("Transparency Report.pdf");
+  exit;
+}
+
+function jfusion_ap_hcp_events_transparency_report_download_admin() {
+  $form = array();
+  // Call service to create profile
+  $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $trasparency_report_filter_options = array();
+  $filterrange = '';
+  $query_params = drupal_get_query_parameters();
+  if (isset($query_params['filter']) && $query_params['filter'] != '') {
+    $filterrange = $query_params['filter'];
+  }
+  foreach (preg_split("/((\r?\n)|(\r\n?))/", $jc_ap_hcp_events_settings['trasparency_report_filter']) as $filter_key => $filter_option) {
+    $option_split = explode('||', $filter_option);
+    if ($filter_key == 0 && $filterrange == '') {
+      $filterrange = $option_split[0];
+    }
+    $trasparency_report_filter_options[$option_split[0]] = $option_split[1];
+  }
+
+  $form = array();
+  $form['filter'] = array(
+    '#type' => 'select',
+    '#options' => $trasparency_report_filter_options,
+    '#default_value' => $filterrange,
+  );
+  $form['submit_pdf'] = array(
+    '#type' => 'submit',
+    '#value' => 'Download Report',
+    '#submit' => array('jfusion_ap_hcp_events_transparency_report_download_admin_submit'),
+  );
+
+  $form['submit_csv'] = array(
+    '#type' => 'submit',
+    '#value' => 'Download Report CSV',
+    '#submit' => array('jfusion_ap_hcp_events_transparency_report_download_admin_submit_csv'),
+  );
+  return $form;
+}
+
+function jfusion_ap_hcp_events_transparency_report_download_admin_submit($form, &$form_state) {
+  $result = array();
+  // Call service to create profile
+  $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $filterrange = '';
+  $filterrange = $form_state['values']['filter'];
+  foreach (preg_split("/((\r?\n)|(\r\n?))/", $jc_ap_hcp_events_settings['trasparency_report_filter']) as $filter_key => $filter_option) {
+    $option_split = explode('||', $filter_option);
+    if ($filter_key == 0 && $filterrange == '') {
+      $filterrange = $option_split[0];
+    }
+    if ($filterrange == $option_split[0]) {
+      $reporting_period = $option_split[3];
+    }
+  }
+
+  $filter_start_end = explode('/', $filterrange);
+  $params['periodStartDate'] = $filter_start_end[0];
+  $params['periodEndDate'] = $filter_start_end[1];
+  $params['page'] = 1;
+  $params['pageCount'] = 250;
+
+  $hcpevents = new HcpEvents();
+  $allbudgets = $hcpevents->getTransparencyReportListAdmin($params);
+  if ($allbudgets['eventListCount'] > 250) {
+    $extra_events = array();
+    for ($i = 2; $i <= $allbudgets['totalPage']; $i++) {
+      $params['page'] = $i;
+      $extra_events = $hcpevents->getTransparencyReportListAdmin($params);
+      $allbudgets1 = array_merge($allbudgets['adminTransparencyReportList'], $extra_events['adminTransparencyReportList']);
+      $allbudgets['adminTransparencyReportList'] = $allbudgets1;
+    }
+  }
+  $allhcpevents = array();
+  foreach ($allbudgets['adminTransparencyReportList'] as $budget) {
+    if (!array_key_exists($budget['eventConsultingID'], $allhcpevents[$budget['accID']]['eventList'])) {
+      $allhcpevents[$budget['accID']]['name'] = $budget['lastName'] . $budget['firstName'];
+      $allhcpevents[$budget['accID']]['eventList'][$budget['eventConsultingID']] = $budget;
+    }
+    $allhcpevents[$budget['accID']]['eventList'][$budget['eventConsultingID']]['expenseList'][] = $budget;
+  }
+  uasort($allhcpevents, function($a, $b) {
+    return strtolower($a['name']) > strtolower($b['name']);
+  });
+
+  $registration_fee_no = $travel_accomodation_fee_no = $fee_for_service_fee_no = '';
+  $registration_fee_hcps = $travel_accomodation_fee_hcps = $fee_for_service_fee_hcps = array();
+
+  foreach ($allhcpevents as $hcpid => $result) {
+    usort($result['eventList'], function($a, $b) {
+      if (strtotime($a['startDate']) == strtotime($b['startDate']))
+        return 0;
+      return strtotime($a['startDate']) > strtotime($b['startDate']) ? 1 : -1;
+    });
+    if (is_array($result['eventList']) && count($result['eventList']) > 0) {
+      foreach ($result['eventList'] as $key => $list) {
+        $expense_count = 0;
+        if ($list['expenseListCount'] == 1) {
+          $result['eventList'][$key]['expenseList'] = array($list['expenseList']);
+          $list['expenseList'] = array($list['expenseList']);
+        }
+        $payment_made_to = '';
+        $registration_fee = $travel_accomodation_fee = $fee_for_service_fee = '';
+
+        $travel_accomodation_list = array(
+          'Accommodation - Speaker/Consultant',
+          'Accommodation - Attendee',
+          'Travel - Speaker/Consultant',
+          'Travel - Attendee',
+        );
+        $fee_for_service_list = array(
+          'Consultancy',
+          'Speaker honorarium'
+        );
+        $payment_made_to_list = array();
+        foreach ($list['expenseList'] as $expense_val) {
+
+          if (!in_array($expense_val['paymentMadeTo'], $payment_made_to_list)) {
+            $payment_made_to .= '<p>' . $expense_val['paymentMadeTo'] . '</p>';
+            $payment_made_to_list[] = $expense_val['paymentMadeTo'];
+          }
+          if ($expense_val['expenseType'] == 'Registration Fee') {
+
+            if ($expense_val['publishByName'] == 'Yes') {
+              $registration_fee = $registration_fee + $expense_val['actualAmount'];
+              $expense_count++;
+            }
+            else {
+              if ($expense_val['actualAmount']) {
+                $registration_fee_hcps[$hcpid] = $hcpid;
+              }
+              $registration_fee_no = $registration_fee_no + $expense_val['actualAmount'];
+            }
+          }
+
+          if (in_array($expense_val['expenseType'], $travel_accomodation_list)) {
+
+            if ($expense_val['publishByName'] == 'Yes') {
+              $expense_count++;
+              $travel_accomodation_fee = $travel_accomodation_fee + $expense_val['actualAmount'];
+            }
+            else {
+              if ($expense_val['actualAmount']) {
+                $travel_accomodation_fee_hcps[$hcpid] = $hcpid;
+              }
+              $travel_accomodation_fee_no = $travel_accomodation_fee_no + $expense_val['actualAmount'];
+            }
+          }
+
+          if (in_array($expense_val['expenseType'], $fee_for_service_list)) {
+
+            if ($expense_val['publishByName'] == 'Yes') {
+              $expense_count++;
+              $fee_for_service_fee = $fee_for_service_fee + $expense_val['actualAmount'];
+            }
+            else {
+              if ($expense_val['actualAmount']) {
+                $fee_for_service_fee_hcps[$hcpid] = $hcpid;
+              }
+              $fee_for_service_fee_no = $fee_for_service_fee_no + $expense_val['actualAmount'];
+            }
+          }
+        }
+        $report_list = '';
+        if ($expense_count > 0) {
+          $report_list .= '<tr>				
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">
+					<p style="margin-top: 0;margin-bottom: 5px;">' . ($list['startDate'] != '' ? date("F Y", strtotime($list['startDate'])) : '') . ($list['endDate'] != '' && date("F Y", strtotime($list['startDate'])) != date("F Y", strtotime($list['endDate'])) ? ' - ' . date("F Y", strtotime($list['endDate'])) : '') . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top"><p style="margin-top: 0;margin-bottom: 5px;">' . $list['lastName'] . ', ' . $list['firstName'] . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">
+					<p style="margin-top: 0;margin-bottom: 5px;">' . $list['hcpType'] . '</p>
+					</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top"><p>' . $list['hcpAddress1'] . '<br/>' . ucwords(strtolower($list['hcpSuburb'])) . '<br/> ' . $list['hcpState'] . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $list['portalTypeService'] . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $list['portalTypeEvent'] . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $payment_made_to . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($registration_fee ? '$' : '') . number_format($registration_fee, 2) . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($travel_accomodation_fee ? '$' : '') . number_format($travel_accomodation_fee, 2) . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($fee_for_service_fee ? '$' : '') . number_format($fee_for_service_fee, 2) . '</td>
+				</tr>';
+        }
+      }
+    }
+  }
+  require_once(drupal_get_path('module', 'jjfusion_ap_hcp_events') . "/libraries/dompdf/dompdf_config.inc.php");
+  $data = '<!DOCTYPE html>
+<html>
+<head>
+<title>' . t('HCP Payments and Transfer of value (ToV) Report for the period ') . $reporting_period . '</title>
+</head>
+<body>
+	<div class="wrapper" style="width: 700px;margin: 0px;">
+  <p style="font-size:9px;margin:0px;font-family: Arial;">' . t('HCP Payments and Transfer of value (ToV) Report for the period ') . $reporting_period . '</p>
+  <p style="font-size:9px;margin:0px;font-family: Arial;margin-bottom:10px;">Company Name: Janssen</p>
+		<table border="1" cellpadding="0" cellspacing="0" width="100%">
+			<thead>
+				<tr>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Date of event<br/> or provision<br/> of service</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Full name of<br/> HCP</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Type of HCP</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Practice<br/> Address</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Type of Service</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 70px;">Type of Event or<br/> Activity</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Payment<br/> made to:</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 40px;">Registration<br/> Fees</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Air Travel & <br/> Accommodation<br/> costs</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 40px;">Fees for<br/> Service and<br/> Consultancy</td>
+				</tr>
+			</thead>
+			<tbody>' . $report_list . '</tbody>
+			<tfoot>
+				<tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="10">Aggregate total of ToVs where HCPs have not consented to data being reported individually</td>
+				</tr>
+				<tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="6">Aggregate ToVs</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($registration_fee_no ? '$' : '') . number_format($registration_fee_no, 2) . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($travel_accomodation_fee_no ? '$' : '') . number_format($travel_accomodation_fee_no, 2) . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($fee_for_service_fee_no ? '$' : '') . number_format($fee_for_service_fee_no, 2) . '</td>
+				</tr>
+        <tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="2">Aggregate number of HCPs</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . (count($registration_fee_hcps) ? '#' . count($registration_fee_hcps) : '') . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . (count($travel_accomodation_fee_hcps) ? '#' . count($travel_accomodation_fee_hcps) : '') . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . (count($fee_for_service_fee_hcps) ? '#' . count($fee_for_service_fee_hcps) : '') . '</td>
+				</tr>
+				
+			</tfoot>
+		</table>
+	</div>
+</body>
+</html>';
+  //echo $data;
+  $dompdf = new DOMPDF;
+  $dompdf->load_html($data);
+  $dompdf->set_paper("A5", "landscape");
+  $dompdf->render();
+  $dompdf->stream("Transparency Report.pdf");
+  exit;
+}
+
+function jfusion_ap_hcp_events_transparency_report_download_admin_submit_csv($form, &$form_state) {
+  $result = array();
+  // Call service to create profile
+  $jc_ap_hcp_events_settings = drupal_json_decode(variable_get('jc_ap_hcp_events_settings', ''));
+  $filterrange = '';
+  $filterrange = $form_state['values']['filter'];
+  foreach (preg_split("/((\r?\n)|(\r\n?))/", $jc_ap_hcp_events_settings['trasparency_report_filter']) as $filter_key => $filter_option) {
+    $option_split = explode('||', $filter_option);
+    if ($filter_key == 0 && $filterrange == '') {
+      $filterrange = $option_split[0];
+    }
+    if ($filterrange == $option_split[0]) {
+      $reporting_period = $option_split[3];
+    }
+  }
+
+  $filter_start_end = explode('/', $filterrange);
+  $params['periodStartDate'] = $filter_start_end[0];
+  $params['periodEndDate'] = $filter_start_end[1];
+  $params['page'] = 1;
+  $params['pageCount'] = 250;
+
+  $hcpevents = new HcpEvents();
+  $allbudgets = $hcpevents->getTransparencyReportListAdmin($params);
+  if ($allbudgets['eventListCount'] > 250) {
+    $extra_events = array();
+    for ($i = 2; $i <= $allbudgets['totalPage']; $i++) {
+      $params['page'] = $i;
+      $extra_events = $hcpevents->getTransparencyReportListAdmin($params);
+      $allbudgets1 = array_merge($allbudgets['adminTransparencyReportList'], $extra_events['adminTransparencyReportList']);
+      $allbudgets['adminTransparencyReportList'] = $allbudgets1;
+    }
+  }
+  $allhcpevents = array();
+  foreach ($allbudgets['adminTransparencyReportList'] as $budget) {
+    if (!array_key_exists($budget['eventConsultingID'], $allhcpevents[$budget['accID']]['eventList'])) {
+      $allhcpevents[$budget['accID']]['name'] = $budget['lastName'] . $budget['firstName'];
+      $allhcpevents[$budget['accID']]['eventList'][$budget['eventConsultingID']] = $budget;
+    }
+    $allhcpevents[$budget['accID']]['eventList'][$budget['eventConsultingID']]['expenseList'][] = $budget;
+  }
+  uasort($allhcpevents, function($a, $b) {
+    return strtolower($a['name']) > strtolower($b['name']);
+  });
+
+  $registration_fee_no = $travel_accomodation_fee_no = $fee_for_service_fee_no = '';
+  $registration_fee_hcps = $travel_accomodation_fee_hcps = $fee_for_service_fee_hcps = array();
+
+  foreach ($allhcpevents as $hcpid => $result) {
+    usort($result['eventList'], function($a, $b) {
+      if (strtotime($a['startDate']) == strtotime($b['startDate']))
+        return 0;
+      return strtotime($a['startDate']) > strtotime($b['startDate']) ? 1 : -1;
+    });
+    if (is_array($result['eventList']) && count($result['eventList']) > 0) {
+      foreach ($result['eventList'] as $key => $list) {
+        $expense_count = 0;
+        if ($list['expenseListCount'] == 1) {
+          $result['eventList'][$key]['expenseList'] = array($list['expenseList']);
+          $list['expenseList'] = array($list['expenseList']);
+        }
+        $payment_made_to = '';
+        $registration_fee = $travel_accomodation_fee = $fee_for_service_fee = '';
+
+        $travel_accomodation_list = array(
+          'Accommodation - Speaker/Consultant',
+          'Accommodation - Attendee',
+          'Travel - Speaker/Consultant',
+          'Travel - Attendee',
+        );
+        $fee_for_service_list = array(
+          'Consultancy',
+          'Speaker honorarium'
+        );
+        $payment_made_to_list = array();
+        foreach ($list['expenseList'] as $expense_val) {
+
+          if (!in_array($expense_val['paymentMadeTo'], $payment_made_to_list)) {
+            $payment_made_to .= '<p>' . $expense_val['paymentMadeTo'] . '</p>';
+            $payment_made_to_list[] = $expense_val['paymentMadeTo'];
+          }
+          if ($expense_val['expenseType'] == 'Registration Fee') {
+
+            if ($expense_val['publishByName'] == 'Yes') {
+              $registration_fee = $registration_fee + $expense_val['actualAmount'];
+              $expense_count++;
+            }
+            else {
+              if ($expense_val['actualAmount']) {
+                $registration_fee_hcps[$hcpid] = $hcpid;
+              }
+              $registration_fee_no = $registration_fee_no + $expense_val['actualAmount'];
+            }
+          }
+
+          if (in_array($expense_val['expenseType'], $travel_accomodation_list)) {
+
+            if ($expense_val['publishByName'] == 'Yes') {
+              $expense_count++;
+              $travel_accomodation_fee = $travel_accomodation_fee + $expense_val['actualAmount'];
+            }
+            else {
+              if ($expense_val['actualAmount']) {
+                $travel_accomodation_fee_hcps[$hcpid] = $hcpid;
+              }
+              $travel_accomodation_fee_no = $travel_accomodation_fee_no + $expense_val['actualAmount'];
+            }
+          }
+
+          if (in_array($expense_val['expenseType'], $fee_for_service_list)) {
+
+            if ($expense_val['publishByName'] == 'Yes') {
+              $expense_count++;
+              $fee_for_service_fee = $fee_for_service_fee + $expense_val['actualAmount'];
+            }
+            else {
+              if ($expense_val['actualAmount']) {
+                $fee_for_service_fee_hcps[$hcpid] = $hcpid;
+              }
+              $fee_for_service_fee_no = $fee_for_service_fee_no + $expense_val['actualAmount'];
+            }
+          }
+        }
+        $report_list = '';
+        if ($expense_count > 0) {
+          $report_list .= '<tr>				
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">
+					<p style="margin-top: 0;margin-bottom: 5px;">' . ($list['startDate'] != '' ? date("F Y", strtotime($list['startDate'])) : '') . ($list['endDate'] != '' && date("F Y", strtotime($list['startDate'])) != date("F Y", strtotime($list['endDate'])) ? ' - ' . date("F Y", strtotime($list['endDate'])) : '') . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top"><p style="margin-top: 0;margin-bottom: 5px;">' . $list['lastName'] . ', ' . $list['firstName'] . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">
+					<p style="margin-top: 0;margin-bottom: 5px;">' . $list['hcpType'] . '</p>
+					</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top"><p>' . $list['hcpAddress1'] . '<br/>' . ucwords(strtolower($list['hcpSuburb'])) . '<br/> ' . $list['hcpState'] . '</p></td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $list['portalTypeService'] . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $list['portalTypeEvent'] . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 50px;" valign="top">' . $payment_made_to . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($registration_fee ? '$' : '') . number_format($registration_fee, 2) . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($travel_accomodation_fee ? '$' : '') . number_format($travel_accomodation_fee, 2) . '</td>
+					<td style="font-size: 8px;padding: 4px;font-family: Arial;width: 40px;" valign="top">' . ($fee_for_service_fee ? '$' : '') . number_format($fee_for_service_fee, 2) . '</td>
+				</tr>';
+        }
+      }
+    }
+  }
+  require_once(drupal_get_path('module', 'jjfusion_ap_hcp_events') . "/libraries/dompdf/dompdf_config.inc.php");
+  $data = '<!DOCTYPE html>
+<html>
+<head>
+<title>' . t('HCP Payments and Transfer of value (ToV) Report for the period ') . $reporting_period . '</title>
+</head>
+<body>
+	<div class="wrapper" style="width: 700px;margin: 0px;">
+  <p style="font-size:9px;margin:0px;font-family: Arial;">' . t('HCP Payments and Transfer of value (ToV) Report for the period ') . $reporting_period . '</p>
+  <p style="font-size:9px;margin:0px;font-family: Arial;margin-bottom:10px;">Company Name: Janssen</p>
+		<table border="1" cellpadding="0" cellspacing="0" width="100%">
+			<thead>
+				<tr>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Date of event<br/> or provision<br/> of service</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Full name of<br/> HCP</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Type of HCP</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Practice<br/> Address</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 60px;">Type of Service</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 70px;">Type of Event or<br/> Activity</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Payment<br/> made to:</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 40px;">Registration<br/> Fees</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 50px;">Air Travel & <br/> Accommodation<br/> costs</td>
+					<td style="font-size: 8px;font-weight: bold;padding: 4px;font-family: Arial;width: 40px;">Fees for<br/> Service and<br/> Consultancy</td>
+				</tr>
+			</thead>
+			<tbody>' . $report_list . '</tbody>
+			<tfoot>
+				<tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="10">Aggregate total of ToVs where HCPs have not consented to data being reported individually</td>
+				</tr>
+				<tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="6">Aggregate ToVs</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($registration_fee_no ? '$' : '') . number_format($registration_fee_no, 2) . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($travel_accomodation_fee_no ? '$' : '') . number_format($travel_accomodation_fee_no, 2) . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . ($fee_for_service_fee_no ? '$' : '') . number_format($fee_for_service_fee_no, 2) . '</td>
+				</tr>
+        <tr>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="2">Aggregate number of HCPs</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+        <td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1"></td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . (count($registration_fee_hcps) ? '#' . count($registration_fee_hcps) : '') . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . (count($travel_accomodation_fee_hcps) ? '#' . count($travel_accomodation_fee_hcps) : '') . '</td>
+				<td style="font-size: 8px;padding: 4px;font-family: Arial;" valign="top" colspan="1">' . (count($fee_for_service_fee_hcps) ? '#' . count($fee_for_service_fee_hcps) : '') . '</td>
+				</tr>
+				
+			</tfoot>
+		</table>
+	</div>
+</body>
+</html>';
+  $file = "Transparency_Report.xls";
+  header("Content-type: application/vnd.ms-excel");
+  header("Content-Disposition: attachment; filename=$file");
+  echo $data;
+  exit;
+}

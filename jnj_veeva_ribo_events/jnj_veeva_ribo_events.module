@@ -1,0 +1,577 @@
+<?php
+
+/**
+ * @file
+ * Code for the ribo events module.
+ */
+
+/**
+ * Implements  hook_menu().
+ */
+function jnj_veeva_ribo_events_menu() {
+  $items = array();
+
+  $items['ribo-event-list'] = array(
+    'title' => 'events',
+    'page callback' => 'jnj_veeva_ribo_eventlist',
+    'access callback' => 'user_is_logged_in',
+    'access arguments' => array('View published content'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['ribo-event-detail'] = array(
+    'title' => 'Event Details',
+    'page callback' => 'jnj_veeva_ribo_eventdetail',
+    'page arguments' => array(1),
+    /* Anonymous user has to access the link. */
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['ribo-event-rsvp/%ctools_js'] = array(
+    'title' => 'ribo-event-detail',
+    'page callback' => 'jnj_veeva_ribo_eventrsvp',
+    'page arguments' => array(1, 2, 3),
+    /* Anonymous user has to access the link. */
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/config/jnj-ribo-events'] = array(
+    'title' => 'JnJ Ribo Events Configurations',
+    'description' => 'Configure ribo events services settings',
+    'access arguments' => array('access_veeva_events_configuration'),
+    'page callback' => 'system_admin_menu_block_page',
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+  );
+  $items['admin/config/jnj-ribo-events/settings'] = array(
+    'title' => 'Ribo Events Settings',
+    'description' => 'Edit events settings.',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jnj_veeva_ribo_events_settings_form'),
+    'access arguments' => array('access_veeva_events_configuration'),
+    'file' => 'includes/admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Modify the drupal mail system to send HTML emails.
+ */
+class JnJRiboEventsMailSystem implements MailSystemInterface {
+
+  /**
+   * Concatenate and wrap the e-mail body for plain-text mails.
+   */
+  public function format(array $message) {
+    $message['body'] = implode("\n\n", $message['body']);
+    return $message;
+  }
+
+  /**
+   * Send an e-mail message, using Drupal variables and default settings.
+   *
+   * @see http://php.net/manual/en/function.mail.php
+   * @see drupal_mail()
+   */
+  public function mail(array $message) {
+    $mimeheaders = array();
+    foreach ($message['headers'] as $name => $value) {
+      $mimeheaders[] = $name . ': ' . mime_header_encode($value);
+    }
+    $line_endings = variable_get('mail_line_endings', MAIL_LINE_ENDINGS);
+    return mail(
+        $message['to'], mime_header_encode($message['subject']),
+        // Note: e-mail uses CRLF for line-endings. PHP's API requires LF
+        // on Unix and CRLF on Windows. Drupal automatically guesses the
+        // line-ending format appropriate for your system. If you need to
+        // override this, adjust $conf['mail_line_endings'] in settings.php.
+        preg_replace('@\r?\n@', $line_endings, $message['body']),
+        // For headers, PHP's API suggests that we use CRLF normally,
+        // but some MTAs incorrectly replace LF with CRLF. See #234403.
+        join("\n", $mimeheaders)
+    );
+  }
+
+}
+
+/**
+ * Implements hook_mail().
+ */
+function jnj_veeva_ribo_events_mail($key, &$message, $params) {
+  $jnj_veeva_ribo_events_settings = drupal_json_decode(variable_get('jnj_veeva_ribo_events_settings'));
+  if ($jnj_veeva_ribo_events_settings['site_cc_email'] != '' && $params['cc'] != '') {
+    $params['cc'] = $params['cc'] . ', ' . $jnj_veeva_ribo_events_settings['site_cc_email'];
+  }
+  elseif ($jnj_veeva_ribo_events_settings['site_cc_email'] != '' && $params['cc'] == '') {
+    $params['cc'] = $jnj_veeva_ribo_events_settings['site_cc_email'];
+  }
+  $message['headers']['MIME-version'] = '1.0';
+  $message['headers']['Content-Type'] = 'text/html; charset=utf-8';
+  $message['headers']['CC'] = $params['cc'];
+  $message['subject'] = $params['context']['subject'];
+  $message['body'][] = $params['context']['message'];
+}
+
+/**
+ * Implements hook_theme().
+ */
+function jnj_veeva_ribo_events_theme() {
+  return array(
+    'riboeventlist' => array(
+      'variables' => array('data' => NULL),
+      'path' => drupal_get_path('module', 'jnj_veeva_ribo_events') . '/templates',
+      'template' => 'ribo-event-list',
+    ),
+    'riboeventdetail' => array(
+      'variables' => array("data" => NULL),
+      'path' => drupal_get_path('module', 'jnj_veeva_ribo_events') . '/templates',
+      'template' => 'ribo-event-detail',
+    ),
+  );
+}
+
+/**
+ * Function to event list.
+ */
+function jnj_veeva_ribo_eventlist() {
+
+  return theme('riboeventlist', array('data' => jnj_veeva_ribo_events_list()));
+}
+
+/**
+ * Function to event list.
+ */
+function jnj_veeva_ribo_events_list($future_events = FALSE) {
+  $jnj_veeva_ribo_events_settings = drupal_json_decode(variable_get('jnj_veeva_ribo_events_settings'));
+  $ribo_details = $jnj_veeva_ribo_events_settings['ribo_events_settings'];
+  $ribo_event_name = $ribo_details['ribo_event_names'];
+  $ribo_array = preg_split("/\r\n|\n|\r/", $ribo_event_name);
+  $params = array('hcpID' => $_SESSION['user-details']['accId'], 'survey' => 'false');
+  if ($future_events) {
+    $params['futureEvents'] = TRUE;
+  }
+  $hcpevents = new HcpEvents();
+  $result_event_list = $hcpevents->getEventList($params);
+  $_SESSION['event_list_details'] = $result_event_list;
+  $ribo_event_list = array();
+  if (isset($result_event_list['eventOutput']) && !isset($result_event_list['eventOutput']['status']) && !isset($result_event_list['eventOutput']['statusCode'])) {
+
+    $result_event_output = array();
+    if (count($result_event_list['eventOutput']) == count($result_event_list['eventOutput'], COUNT_RECURSIVE)) {
+      $result_event_output[0] = $result_event_list['eventOutput'];
+    }
+    else {
+      $result_event_output = $result_event_list['eventOutput'];
+    }
+
+    // Separate future and past events.
+    if (count($result_event_output) > 0) {
+      foreach ($result_event_output as $event) {
+        if (in_array($event['eventName'], $ribo_array)) {
+          if (strtotime($event['eventDate']) > strtotime("today")) {
+            $ribo_event_list['futureEvents'][] = $event;
+          }
+          else {
+            $ribo_event_list['pastEvents'][] = $event;
+          }
+        }
+      }
+    }
+  }
+  return $ribo_event_list;
+}
+
+/**
+ * Function to event detail.
+ */
+function jnj_veeva_ribo_eventdetail($eventId) {
+  // Load the cTools library.
+  ctools_include('modal');
+  ctools_modal_add_js();
+
+  $params = array('hcpID' => $_SESSION['user-details']['accId'], 'eventID' => $eventId);
+  $hcpevents = new HcpEvents();
+  $ribo_event_detail = $hcpevents->getEventDetail($params);
+  drupal_set_title($ribo_event_detail['eventName']);
+
+  if (isset($ribo_event_detail['status']) && $ribo_event_detail['status'] == 'No') {
+    return theme('riboeventdetail', array('data' => $ribo_event_detail));
+  }
+  if ($ribo_event_detail['eventStartTime']) {
+    $ribo_event_detail['formatEventTime'] = date("g:i a", strtotime($ribo_event_detail['eventStartTime']));
+  }
+  else {
+    $ribo_event_detail['formatEventTime'] = '';
+  }
+  $ribo_event_detail['formatEventDate'] = date("l d/m/Y", strtotime($ribo_event_detail['eventDate']));
+  $ribo_event_detail['eventDate'] = $ribo_event_detail['eventDate'];
+  $ribo_event_detail['formatMapAddress'] = $ribo_event_detail['venueName'] . ',' . $ribo_event_detail['venueStreet1'] . ',' . $ribo_event_detail['venueSuburb'] . ',' . $ribo_event_detail['venueState'] . $ribo_event_detail['venuePostCode'];
+
+  return theme('riboeventdetail', array('data' => $ribo_event_detail));
+}
+
+/**
+ * Function to event RSVP.
+ */
+function jnj_veeva_ribo_eventrsvp($ajax, $eventID, $rsvpStatus) {
+
+  if ($ajax) {
+    ctools_include('ajax');
+    ctools_include('modal');
+
+    $form_state = array(
+      'ajax' => TRUE,
+      'title' => 'Confirming your RSVP',
+      'build_info' => array('args' => array('0' => $eventID, '1' => $rsvpStatus)),
+    );
+
+    $output = ctools_modal_form_wrapper('ribo_event_rsvp_form', $form_state);
+    if ($rsvpStatus == RsvpStatus::CODE_DECLINED || $rsvpStatus == RsvpStatus::CODE_TENTATIVE) {
+      drupal_form_submit('ribo_event_rsvp_form', $form_state);
+    }
+
+    if (!empty($form_state['ajax_commands'])) {
+      $output = $form_state['ajax_commands'];
+    }
+
+    print ajax_render($output);
+    drupal_exit();
+  }
+  else {
+    return drupal_get_form('ribo_event_rsvp_form');
+  }
+}
+
+/**
+ * Function to event rsvp form.
+ */
+function ribo_event_rsvp_form($form, &$form_state, $eventID, $rsvpStatus) {
+
+  $form = array();
+  $form['eventId'] = array(
+    '#type' => 'value',
+    '#value' => $eventID,
+  );
+  $form['rsvpStatus'] = array(
+    '#type' => 'hidden',
+    '#value' => $rsvpStatus,
+    '#attributes' => array('id' => 'rsvpStatus'),
+  );
+  $form['dietaryReq'] = array(
+    '#type' => 'textarea',
+    '#attributes' => array('placeholder' => 'If you have special dietary requirements, please let us know.'),
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Confirm your attendance',
+    '#ajax' => array(
+      'callback' => 'ribo_event_rsvp_confirm_submit',
+      'event' => 'click',
+    ),
+  );
+  return $form;
+}
+
+/**
+ * Function to event rsvp submit.
+ */
+function ribo_event_rsvp_confirm_submit(&$form, &$form_state) {
+  global $user, $base_url;
+  $stringweb = "Webinar";
+  $ribo_event_details = $_SESSION['ribo-event-details'];
+  $jnj_veeva_ribo_events_settings = drupal_json_decode(variable_get('jnj_veeva_ribo_events_settings'));
+  $ribo_details = $jnj_veeva_ribo_events_settings['ribo_events_settings'];
+  $params = array(
+    'hcpID' => $_SESSION['user-details']['accId'],
+    'eventID' => $form_state['values']['eventId'],
+    'eventStatus' => RsvpStatus::getRsvpStatusByCode($form_state['values']['rsvpStatus']),
+    'dietaryReq' => $form_state['values']['dietaryReq'],
+  );
+
+  $hcpevents = new HcpEvents();
+  $hcpevents->registerEvent($params);
+  $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  $email_params = drupal_json_decode(variable_get('jnj_veeva_ribo_events_settings', ''));
+  $event_name = $ribo_event_details['eventName'];
+  $event_venue = $ribo_event_details['venueName'] . ', ' . $ribo_event_details['venueStreet1'] . ', ' . $ribo_event_details['venueSuburb'] . ', ' . $ribo_event_details['venueState'] . ' ' . $ribo_event_details['venuePostCode'];
+  if (substr($event_name, strlen($event_name) - 1) === substr($stringweb, strlen($stringweb) - 1)) {
+    $event_time_venue = $ribo_event_details['formatEventTime'] . ', ' . $ribo_event_details['formatEventDate'];
+  }
+  else {
+    $event_time_venue = $ribo_event_details['formatEventTime'] . ', ' . $ribo_event_details['formatEventDate'] . '<br><br>' . $ribo_event_details['venueName'] . ', ' . $ribo_event_details['venueStreet1'] . ', ' . $ribo_event_details['venueSuburb'] . ', ' . $ribo_event_details['venueState'] . ' ' . $ribo_event_details['venuePostCode'];
+  }
+  if ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_DECLINED) {
+    $replace_html = '<h4>You have declined this event. </h4><p> If you wish to join this event, please <a href="#" id="cancel">RSVP</a> here.</p>';
+    $message_to_host = t('HCP has declained the meeting invite.');
+  }
+  elseif ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_TENTATIVE) {
+    $replace_html = '<h4>You maybe attending this event. </h4><p> <a href="#" id="cancel">Confirm or cancel your attendance</a> here.</p>';
+    $message_to_host = t('HCP has tentatively accepted the meeting invite.');
+  }
+  else {
+    $from = variable_get('site_mail', '');
+    $to = $user->name;
+
+    $params['context']['message'] = $email_params['rsvp_email']['body'];
+    $params['context']['subject'] = $email_params['rsvp_email']['subject'];
+    $params['context']['message'] = str_replace('\r\n', "\n", $params['context']['message']);
+    $params['context']['subject'] = str_replace('\r\n', "\n", $params['context']['subject']);
+    $params['context']['message'] = str_replace(array('[hcpuser:fname]',
+      '[hcpuser:lname]',
+      '[event_title]',
+      '[event_time_date]',
+      '[site:url]',
+    ),
+        array($_SESSION['user-details']['firstName'],
+          $_SESSION['user-details']['lastName'],
+          $event_name,
+          $event_time_venue,
+          $base_url,
+        ),
+        $params['context']['message']);
+    if ($jnj_veeva_hcp_profile_settings['iconnect_enable_phase2_features']) {
+      $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+      if ($jnj_veeva_hcp_profile_settings['site_cc_email'] != '' && $params['cc'] != '') {
+        $params['cc'] = $params['cc'] . ', ' . $jnj_veeva_hcp_profile_settings['site_cc_email'];
+      }
+      elseif ($jnj_veeva_hcp_profile_settings['site_cc_email'] != '' && $params['cc'] == '') {
+        $params['cc'] = $jnj_veeva_hcp_profile_settings['site_cc_email'];
+      }
+      $event_date = date("Y-m-d", strtotime($_SESSION['ribo-event-details']['eventDate']));
+      $eventTimeF = date("H:i:s", strtotime($_SESSION['ribo-event-details']['formatEventTime']));
+      $event_timeD = $event_date . ' ' . $eventTimeF;
+      ribosendIcalEmail($_SESSION['user-details']['firstName'], $to, $event_timeD, $eventTimeF, $event_name, $params, $event_venue);
+    }
+    else {
+      drupal_mail('jnj_veeva_ribo_events', 'rsvp', $to, language_default(), $params, $from);
+    }
+
+    $message_to_host = t('HCP has accepted the meeting invite.');
+    $replace_html = '<h4>You are attending this event</h4><p> If you can no longer attend this event, <a href="#" id="cancel">you can cancel your attendance</a> here.</p>';
+    if ($jnj_veeva_hcp_profile_settings['iconnect_enable_phase2_features']) {
+      $params['context']['message'] = $email_params['rsvp_mail_to_host']['body'];
+      $params['context']['subject'] = $email_params['rsvp_mail_to_host']['subject'];
+      $params['context']['message'] = str_replace(array('[hcpuser:fname]',
+        '[hcpuser:lname]',
+        '[event_title]',
+        '[event_time_date]',
+        '[site:url]',
+        '[rsvpmessage]',
+      ),
+          array($_SESSION['user-details']['firstName'],
+            $_SESSION['user-details']['lastName'],
+            $event_name,
+            $event_time_venue,
+            $base_url,
+            $message_to_host,
+          ),
+          $params['context']['message']);
+      for ($i = 1; $i <= 3; $i++) {
+        if (isset($ribo_event_details['rsvpInfo']['rsvp' . $i . 'Email'])) {
+          $to_email[] = $ribo_event_details['rsvpInfo']['rsvp' . $i . 'Email'];
+        }
+      }
+      if (isset($ribo_details['ribo_mail']) && $ribo_details['ribo_mail'] != '') {
+        $to = $ribo_details['ribo_mail'];
+      }
+      else {
+        $to = implode(',', $to_email);
+      }
+      drupal_mail('jnj_veeva_ribo_events', 'rsvptohost', $to, language_default(), $params, $from);
+    }
+    $form_state['ajax_commands'][] = ajax_command_html("#rsvp-ribo-status", $replace_html);
+    $form_state['ajax_commands'][] = ajax_command_invoke(NULL, 'eventRSVPriboSuccess');
+    return array('#type' => 'ajax', '#commands' => $form_state['ajax_commands']);
+  }
+  $form_state['ajax_commands'][] = ajax_command_html("#rsvp-ribo-status", $replace_html);
+  $form_state['ajax_commands'][] = ajax_command_invoke(NULL, 'eventRSVPriboSuccess');
+  $form_state['ajax_commands'][] = ctools_modal_command_dismiss();
+}
+
+/**
+ * Function to event rsvp submit.
+ */
+function ribo_event_rsvp_form_submit(&$form, &$form_state) {
+  global $base_url;
+  $ribo_event_details = $_SESSION['ribo-event-details'];
+  $stringweb = "Webinar";
+  $jnj_veeva_ribo_events_settings = drupal_json_decode(variable_get('jnj_veeva_ribo_events_settings'));
+  $ribo_details = $jnj_veeva_ribo_events_settings['ribo_events_settings'];
+  $params = array(
+    'hcpID' => $_SESSION['user-details']['accId'],
+    'eventID' => $form_state['values']['eventId'],
+    'eventStatus' => RsvpStatus::getRsvpStatusByCode($form_state['values']['rsvpStatus']),
+    'dietaryReq' => $form_state['values']['dietaryReq'],
+  );
+  if ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_DECLINED) {
+    $hcpevents = new HcpEvents();
+    $hcpevents->registerEvent($params);
+    $message_to_host = t('HCP has declained the meeting invite.');
+    $replace_html = '<h4>You have declined this event. </h4><p> If you wish to join this event, please <a href="#" id="cancel">RSVP</a> here.</p>';
+  }
+  elseif ($form_state['values']['rsvpStatus'] == RsvpStatus::CODE_TENTATIVE) {
+    $hcpevents = new HcpEvents();
+    $hcpevents->registerEvent($params);
+    $replace_html = '<h4>You maybe attending this event. </h4><p> <a href="#" id="cancel">Confirm or cancel your attendance</a> here.</p>';
+    $message_to_host = t('HCP has tentatively accepted the meeting invite.');
+  }
+  else {
+    return;
+  }
+  $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  if ($jnj_veeva_hcp_profile_settings['iconnect_enable_phase2_features']) {
+    $ribo_event_details = $_SESSION['ribo-event-details'];
+    $email_params = drupal_json_decode(variable_get('jnj_veeva_ribo_events_settings', ''));
+    $event_name = $ribo_event_details['eventName'];
+    if (substr($event_name, strlen($event_name) - 1) === substr($stringweb, strlen($stringweb) - 1)) {
+      $event_time_venue = $ribo_event_details['formatEventTime'] . ', ' . $ribo_event_details['formatEventDate'];
+    }
+    else {
+      $event_time_venue = $ribo_event_details['formatEventTime'] . ', ' . $ribo_event_details['formatEventDate'] . '<br><br>' . $ribo_event_details['venueName'] . ', ' . $ribo_event_details['venueStreet1'] . ', ' . $ribo_event_details['venueSuburb'] . ', ' . $ribo_event_details['venueState'] . ' ' . $ribo_event_details['venuePostCode'];
+    }
+    $params['context']['message'] = $email_params['rsvp_mail_to_host']['body'];
+    $params['context']['subject'] = $email_params['rsvp_mail_to_host']['subject'];
+    $params['context']['message'] = str_replace(array(
+      '[hcpuser:fname]',
+      '[hcpuser:lname]',
+      '[event_title]',
+      '[event_time_date]',
+      '[site:url]',
+      '[rsvpmessage]',
+    ),
+        array($_SESSION['user-details']['firstName'],
+          $_SESSION['user-details']['lastName'],
+          $event_name,
+          $event_time_venue,
+          $base_url, $message_to_host,
+        ),
+        $params['context']['message']);
+    for ($i = 1; $i <= 3; $i++) {
+      if (isset($ribo_event_details['rsvpInfo']['rsvp' . $i . 'Email'])) {
+        $to_email[] = $ribo_event_details['rsvpInfo']['rsvp' . $i . 'Email'];
+      }
+    }
+    if (isset($ribo_details['ribo_mail']) && $ribo_details['ribo_mail'] != '') {
+      $to = $ribo_details['ribo_mail'];
+    }
+    else {
+      $to = implode(',', $to_email);
+    }
+    drupal_mail('jnj_veeva_ribo_events', 'rsvptohost', $to, language_default(), $params);
+  }
+  $form_state['ajax_commands'][] = ajax_command_html("#rsvp-ribo-status", $replace_html);
+  $form_state['ajax_commands'][] = ajax_command_invoke(NULL, 'eventRSVPriboSuccess');
+  $form_state['ajax_commands'][] = ctools_modal_command_dismiss();
+}
+
+/**
+ * Function to event permission.
+ */
+function jnj_veeva_ribo_events_permission() {
+  $permissions = array();
+  $permissions['access_veeva_events_configuration'] = array(
+    'title' => t('Access veeva Events configuration'),
+    'description' => t('Perform configurations for veeva events settings.'),
+  );
+  return $permissions;
+}
+
+/**
+ * Function to event images.
+ */
+function jnj_veeva_ribo_events_images($eventID) {
+
+  $nids = array();
+  $images = node_load_multiple(array(), array('type' => 'event_images'));
+  $nids = array_keys($images);
+  $random_key = array_rand($nids, 1);
+  $_SESSION['event-image'][$eventID] = $nids[$random_key];
+  return file_create_url($images[$nids[$random_key]]->field_img[LANGUAGE_NONE][0]['uri']);
+}
+
+/**
+ * Function to send email as calendar.
+ */
+function ribosendIcalEmail($firstname, $to, $event_timeD, $eventTimeF, $event_name, $params, $event_venue) {
+  $stringweb = "Webinar";
+  $from_address = variable_get('site_mail', '');
+  // Doubles as email subject and meeting subject in calendar.
+  $subject = $event_name;
+  if (substr($event_name, strlen($event_name) - 1) === substr($stringweb, strlen($stringweb) - 1)) {
+    // Where will your meeting take place.
+    $meeting_location = ' ';
+  }
+  else {
+    // Where will your meeting take place.
+    $meeting_location = $event_venue;
+  }
+  $meeting_duration = 3600;
+  // Convert MYSQL datetime and construct iCal start, end and issue dates.
+  $meetingstamp = strtotime($event_timeD . " UTC");
+  $dtstart = gmdate("Ymd\THis\Z", $meetingstamp);
+  $dtend = gmdate("Ymd\THis\Z", $meetingstamp + $meeting_duration);
+  $todaystamp = gmdate("Ymd\THis\Z");
+
+  // Create unique identifier.
+  $cal_uid = date('Ymd') . 'T' . date('His') . "-" . rand() . "@mydomain.com";
+
+  // Create Mime Boundary.
+  $mime_boundary = "----Meeting Booking----" . md5(time());
+
+  // Create Email Headers.
+  $headers = "Cc: " . $params['cc'] . "\n";
+  $headers .= "From: " . $from_address . "\n";
+  $headers .= "MIME-Version: 1.0\n";
+  $headers .= "Content-Type: multipart/alternative; boundary=\"$mime_boundary\"\n";
+  $headers .= "Content-class: urn:content-classes:calendarmessage\n";
+
+  // Create Email Body (HTML).
+  $message = '';
+  $message .= "--$mime_boundary\n";
+  $message .= "Content-Type: text/html; charset=UTF-8\n";
+  $message .= "Content-Transfer-Encoding: 8bit\n\n";
+  $message .= "<html>\n";
+  $message .= "<body>\n";
+
+  $message .= $params['context']['message'];
+  $message .= "</body>\n";
+  $message .= "</html>\n";
+  $message .= "--$mime_boundary\n";
+
+  // Create ICAL Content (Google rfc 2445 for details and examples of usage).
+  $ical = 'BEGIN:VCALENDAR
+PRODID:-//Microsoft Corporation//Outlook 12.0 MIMEDIR//EN
+VERSION:2.0
+METHOD:PUBLISH
+BEGIN:VEVENT
+ORGANIZER:MAILTO:' . $from_address . '
+DTSTART:' . $dtstart . '
+DTEND:' . $dtend . '
+LOCATION:' . $meeting_location . '
+TRANSP:OPAQUE
+SEQUENCE:0
+UID:' . $cal_uid . '
+DTSTAMP:' . $todaystamp . '
+SUMMARY:' . $subject . '
+PRIORITY:5
+CLASS:PUBLIC
+END:VEVENT
+END:VCALENDAR';
+
+  $message .= 'Content-Type: text/calendar;name="meeting.ics";method=REQUEST;charset=utf-8\n';
+  $message .= 'Content-Type: text/calendar;name="meeting.ics";method=REQUEST\n';
+  $message .= "Content-Transfer-Encoding: 8bit\n\n";
+  $message .= $ical;
+
+  // SEND MAIL.
+  $mail_sent = @mail($to, $subject, $message, $headers);
+
+  if ($mail_sent) {
+    return TRUE;
+  }
+  else {
+    return FALSE;
+  }
+}

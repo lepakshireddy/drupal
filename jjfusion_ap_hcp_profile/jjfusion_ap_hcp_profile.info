@@ -1,0 +1,23 @@
+name = jjfusion AP HCP Profile
+description = Module to create user profile, login, forgot & reset password in Veeva using JBoss services
+core = 7.x
+package = Janssen 
+
+dependencies[] = clientside_validation_fapi
+dependencies[] = clientside_validation_form
+dependencies[] = ctools
+
+files[] = classes/HcpProfile.php
+files[] = classes/ServiceStatusCodes.php
+files[] = classes/ServiceUrl.php
+
+configure = admin/config
+
+; Add a style sheet for all media
+stylesheets[all][] = css/jjfusion_ap_hcp_profile.css
+
+;Javascript
+;scripts[] = jjfusion_ap_hcp_profile.js
+
+version = "7.x-1.0"
+datestamp = "1378386649"

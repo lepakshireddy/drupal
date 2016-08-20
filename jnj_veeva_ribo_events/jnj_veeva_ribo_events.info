@@ -1,0 +1,10 @@
+name = Janssen Ribo Events
+description = Module has the list of API's about events in Veeva using JBoss services
+package = Janssen
+core = 7.x
+
+dependencies[] = jjfusion_ap_hcp_events
+
+files[] = classes/HcpEvents.php
+files[] = classes/ServiceUrl.php
+files[] = classes/RsvpStatus.php

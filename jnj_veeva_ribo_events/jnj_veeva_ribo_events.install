@@ -1,0 +1,30 @@
+<?php
+
+/**
+ * @file
+ * Install, Enable, and Uninstall functions for the Janssen Events module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function jnj_veeva_ribo_events_install() {
+  $jnj_veeva_ribo_events_settings['service_url'] = 'https://stage.mdndproxy.itrinno.com/phr_JCANZ_HCPEvent_VeevaAPI-V1.0/VeevaANZ_API';
+  variable_set('jnj_veeva_ribo_events_settings', drupal_json_encode($jnj_veeva_ribo_events_settings));
+
+  $mail_system = variable_get('mail_system');
+  $mail_system['jnj_veeva_ribo_events'] = 'JnJRiboEventsMailSystem';
+  variable_set('mail_system', $mail_system);
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function jnj_veeva_ribo_events_uninstall() {
+  // Delete variables from table.
+  variable_del('jnj_veeva_ribo_events_settings');
+
+  $mail_system = variable_get('mail_system');
+  unset($mail_system['jnj_veeva_ribo_events']);
+  variable_set('mail_system', $mail_system);
+}

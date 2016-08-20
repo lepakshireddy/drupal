@@ -1,0 +1,179 @@
+<?php
+
+/**
+ * @file
+ * Code for the www_janssenpro_com_au.
+ */
+
+/**
+ * Implements hook_views_pre_render().
+ *
+ * Alter the results of views.
+ */
+function www_janssenpro_com_au_views_pre_render(&$view) {
+  $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  $all_therapy_value = $jnj_veeva_hcp_profile_settings['jnj_veeva_hcp_all_therapy_area_value'];
+  $therapyArea = $all_therapy_value;
+  if (isset($_SESSION['user-details'])) {
+    $therapyArea = $_SESSION['user-details']['therapyArea'];
+  }
+  $therapyarea_items = taxonomy_get_term_by_name('Therapy Area');
+  if (is_array($therapyarea_items) && count($therapyarea_items) > 0) {
+    foreach ($therapyarea_items as $therapyarea_item) {
+      if ($therapyarea_item->name == 'Therapy Area') {
+        $therapy_tid = $therapyarea_item->tid;
+      }
+    }
+  }
+  $therapy_list = taxonomy_get_children($therapy_tid);
+  foreach ($therapy_list as $therapy) {
+    if (trim($therapy->name) == trim($_SESSION['user-details']['therapyArea'])) {
+      $user_therapyarea_tid = $therapy->tid;
+    }
+  }
+
+  $mandatory_display = taxonomy_get_term_by_name('Mandatory Display in Home Page');
+  if (is_array($mandatory_display) && count($mandatory_display) > 0) {
+    foreach ($mandatory_display as $mandatory_tids) {
+      if ($mandatory_tids->name == 'Mandatory Display in Home Page') {
+        $mandatory_display_id = $mandatory_tids->tid;
+      }
+    }
+  }
+  if ($view->name == 'your_news' && $view->current_display == 'block') {
+    $condition_terms = taxonomy_get_term_by_name('Condition');
+    if (is_array($condition_terms) && count($condition_terms) > 0) {
+      foreach ($condition_terms as $condition_term) {
+        if ($condition_term->name == 'Condition') {
+          $condition_tid = $condition_term->tid;
+        }
+      }
+    }
+    $nodes_conditions = taxonomy_get_children($condition_tid);
+
+    foreach ($nodes_conditions as $cond) {
+      $conditions_list[$cond->tid] = $cond->tid;
+    }
+    foreach ($view->result as $key => $res) {
+      $user_therapy = FALSE;
+      foreach ($res->field_field_general_tags as $therapy) {
+        if ($therapy['raw']['tid'] == $mandatory_display_id || $therapy['raw']['tid'] == $user_therapyarea_tid || $therapyArea == $all_therapy_value) {
+          $user_therapy = TRUE;
+        }
+      }
+      foreach ($res->field_field_general_tags_1 as $con_key => $con_tid) {
+        if (!in_array($con_tid['raw']['tid'], $conditions_list)) {
+          unset($view->result[$key]->field_field_general_tags_1[$con_key]);
+        }
+      }
+      if (!$user_therapy) {
+        unset($view->result[$key]);
+      }
+    }
+  }
+  if ($view->name == 'your_news' && $view->current_display == 'block_1') {
+    $condition_terms = taxonomy_get_term_by_name('Condition');
+    if (is_array($condition_terms) && count($condition_terms) > 0) {
+      foreach ($condition_terms as $condition_term) {
+        if ($condition_term->name == 'Condition') {
+          $condition_tid = $condition_term->tid;
+        }
+      }
+    }
+    $nodes_conditions = taxonomy_get_children($condition_tid);
+
+    foreach ($nodes_conditions as $cond) {
+      $conditions_list[$cond->tid] = $cond->tid;
+    }
+    foreach ($view->result as $key => $res) {
+      $user_therapy = FALSE;
+      foreach ($res->field_field_general_tags as $therapy) {
+        if ($therapy['raw']['tid'] == $mandatory_display_id || $therapy['raw']['tid'] == $user_therapyarea_tid || $therapyArea == $all_therapy_value) {
+          $user_therapy = TRUE;
+        }
+      }
+      foreach ($res->field_field_general_tags_1 as $con_key => $con_tid) {
+        if (!in_array($con_tid['raw']['tid'], $conditions_list)) {
+          unset($view->result[$key]->field_field_general_tags_1[$con_key]);
+        }
+      }
+      if ($user_therapy) {
+        unset($view->result[$key]);
+      }
+    }
+  }
+  if ($view->name == 'products_homepage') {
+    $therapy_products = array();
+    foreach ($view->result as $key => $res) {
+      $user_therapy = FALSE;
+      foreach ($res->field_field_general_tags as $therapy) {
+        if ($therapy['raw']['tid'] == $user_therapyarea_tid) {
+          $user_therapy = TRUE;
+        }
+      }
+      if ($user_therapy) {
+        $therapy_products[] = $view->result[$key];
+        unset($view->result[$key]);
+      }
+    }
+    $view->result = array_merge($therapy_products, $view->result);
+  }
+  if ($view->name == 'industry_events') {
+    foreach ($view->result as $key => $res) {
+      $user_therapy = FALSE;
+      foreach ($res->field_field_general_tags as $therapy) {
+        if ($therapy['raw']['tid'] == $user_therapyarea_tid || $therapyArea == $all_therapy_value) {
+          $user_therapy = TRUE;
+        }
+      }
+      if (!$user_therapy) {
+        unset($view->result[$key]);
+      }
+    }
+  }
+  if ($view->name == 'promo tile') {
+    foreach ($view->result as $key => $res) {
+      $fileName = $res->_field_data['node_field_data_field_related_content_nid']['entity']->field_resource_file[LANGUAGE_NONE][0]['filename'];
+      if (strpos($fileName, 'dummy') !== FALSE) {
+        unset($view->result[$key]->field_field_resource_file);
+      }
+      else {
+        unset($view->result[$key]->field_body);
+      }
+    }
+  }
+}
+
+/**
+ * Function to get the webform id based on name.
+ */
+function janssenpro_webform_block_id_by_name($name) {
+  $webform_id = '';
+  $webform_node_types = webform_node_types();
+  if (!empty($webform_node_types)) {
+    $query = db_select('webform', 'w')->fields('w')->fields('n', array('title'));
+    $query->leftJoin('node', 'n', 'w.nid = n.nid');
+    $query->condition('w.block', 1);
+    $query->condition('n.type', $webform_node_types, 'IN');
+    $result = $query->execute();
+    foreach ($result as $data) {
+      if ($name == $data->title) {
+        $webform_id = $data->nid;
+      }
+    }
+  }
+  return $webform_id;
+}
+
+/**
+ * Implements hook_presave().
+ *
+ * Save information on node presave.
+ */
+function www_janssenpro_com_au_presave($entity, $type) {
+  $controller = jcr_client_controller();
+  if ($controller && isset($entity->jcr) && $controller::isRepoEntity($type)) {
+    if ('file' == $type) {
+    }
+  }
+}

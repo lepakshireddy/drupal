@@ -1,0 +1,120 @@
+<?php
+
+/**
+ * @file
+ * Install, Enable, and Uninstall functions for the Janssen Profile module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function jjfusion_ap_hcp_profile_install() {
+  //Client side validation for all forms in this module along with user login form.
+  $validation_settings = 'a:6:{s:16:"validate_options";a:8:{s:13:"disable_html5";i:1;s:7:"captcha";s:1:"1";s:17:"validate_onsubmit";s:1:"1";s:15:"validate_onblur";s:1:"1";s:22:"validate_onblur_always";s:1:"0";s:16:"validate_onkeyup";s:1:"0";s:20:"validate_before_ajax";s:1:"1";s:13:"show_messages";s:1:"0";}s:15:"error_placement";a:3:{s:23:"error_placement_default";s:1:"5";s:15:"jquery_selector";s:0:"";s:21:"custom_error_function";s:0:"";}s:33:"validate_options_override_default";i:1;s:22:"error_override_default";i:0;s:32:"error_placement_override_default";i:1;s:31:"include_hidden_override_default";i:0;}';
+  foreach (array('jnj_veeva_hcp_profile_registration', 'user_login_block', 'user_login', 'jnj_veeva_hcp_profile_forgot_password', 'jnj_veeva_hcp_profile_reset_password', 'jnj_veeva_hcp_profile_forgot_email') as $form_id) {
+    db_insert('clientside_validation_settings')->fields(array('type' => 'custom-forms', 'status' => TRUE, 'form_id' => $form_id, 'settings' => $validation_settings))->execute();
+  }
+  // Janssen Hcp Profile Common Settings 
+  $jnj_veeva_hcp_profile_settings['service_url'] = 'https://stage.mdndproxy.itrinno.com/phr_JCANZ_HCPRegistration_VeevaAPI-V1.0/VeevaANZ_API';
+  $jnj_veeva_hcp_profile_settings['redirect_url_login'] = '<front>';
+  $jnj_veeva_hcp_profile_settings['veeva_service_portal'] = '';
+  $jnj_veeva_hcp_profile_settings['consent_text'] = '<p>We collect your personal information to evaluate your eligibility to register on our website. Without your personal information we would be unable to register you. With your express consent, which you may give by clicking the box above, we can send you relevant product and other information which may be of interest to you. Subject to some exceptions permitted by law you may request access to your personal information.For more details on privacy, please see our <a href="/privacy-policy" target="_blank">Privacy Policy</a></p>';
+
+  $jnj_veeva_hcp_profile_settings['help_icon_text'] = '<p>Registration Codes are designed to provide access only to licensed Healthcare Professionals, and to offer immediate access to this site following registration.</p>
+<p>You can get a Registration Code from your Janssen representative, Janssen medical information staff or by contacting our customer service hotline, found on the Contact Janssen page.</p>';
+
+  // Janssen Hcp Profile Email Templates
+  $jnj_veeva_hcp_profile_email_templates['registration']['subject'] = "Thank you for registering";
+  $jnj_veeva_hcp_profile_email_templates['registration']['body'] = "Dear [hcpuser:fname], \n Thank you for registering!";
+  $jnj_veeva_hcp_profile_email_templates['forgot_password']['subject'] = 'Please reset your password';
+  $jnj_veeva_hcp_profile_email_templates['forgot_password']['body'] = "Dear [hcpuser:fname], \n please click on the link and reset your password [hcpuser:password_reset_link]";
+  $jnj_veeva_hcp_profile_email_templates['reset_password']['subject'] = "Your password has changed";
+  $jnj_veeva_hcp_profile_email_templates['reset_password']['body'] = "Dear [hcpuser:fname], \n We wanted to let you know that your password has updated.";
+
+  // Janssen Hcp Profile Email Templates
+  // $hcp_success_templates['forgot_password']['title'] = 'hcp success message forgot pass title';
+  // $hcp_success_templates['hcp_success_forgot_password']['body'] = 'An email has been sent with instructions on how to reset your password';
+  // $hcp_success_templates['hcp_success_reset_password']['title'] = 'hcp success message reset pass title';
+  // $hcp_success_templates['hcp_success_reset_password']['body'] = 'Your password has been updated successfully. Please login to start using Janssen Pro.';
+  // Janssen Hcp Profile Messages
+  $jnj_veeva_hcp_profile_messages['profile_created_success'] = 'Your profile has been created successfully.';
+  $jnj_veeva_hcp_profile_messages['invalid_registration_code'] = 'Your registration code is invalid. Please <a href = "/">click here</a> to try again. For further assistance, please call the Janssen customer hotline on XXXX.';
+  $jnj_veeva_hcp_profile_messages['profile_already_exist_same_security'] = 'Your profile already exist. Have you <a href="/hcp-forgot-password">forgot your password or email</a>.';
+  $jnj_veeva_hcp_profile_messages['profile_already_exist_diff_security'] = 'Your profile already exist with different security level. Please contact XXXX and get the access to this portal.';
+  $jnj_veeva_hcp_profile_messages['profile_already_exist_in_progress'] = 'Your profile already exist and in progress';
+  $jnj_veeva_hcp_profile_messages['profile_general_failure_heading'] = 'Please try again later';
+  $jnj_veeva_hcp_profile_messages['profile_general_failure'] = 'We are experiencing some technical difficulties at this time.  Please try again later.  Alternatively you can contact us on 1800 226 334.';
+  $jnj_veeva_hcp_profile_messages['invalid_login_email_not_exist'] = 'The password or email you entered is not correct. Please check your entries and try again';
+  $jnj_veeva_hcp_profile_messages['invalid_login_email_exist_diff_security'] = 'Your email already exist with different security level. Please contact XXXX and get the access to this portal.';
+  $jnj_veeva_hcp_profile_messages['forgot_password_valid_email'] = 'An email has been sent with instructions on how to reset your password';
+  $jnj_veeva_hcp_profile_messages['forgot_password_invalid_email'] = "Email doesn\'t exist in our record";
+  $jnj_veeva_hcp_profile_messages['forgot_email_security_question_does_not_match'] = "Your input doesn't match. Please check and try again";
+  $jnj_veeva_hcp_profile_messages['reset_pwd_vercode_not_valid'] = 'Invalid URL';
+  $jnj_veeva_hcp_profile_messages['password_update_success'] = 'Your password has been updated successfully';
+
+  // Save values in variable table
+  variable_set('jnj_veeva_hcp_profile_settings', drupal_json_encode($jnj_veeva_hcp_profile_settings));
+  variable_set('jnj_veeva_hcp_profile_email_templates', drupal_json_encode($jnj_veeva_hcp_profile_email_templates));
+  variable_set('jnj_veeva_hcp_profile_messages', drupal_json_encode($jnj_veeva_hcp_profile_messages));
+  $mail_system = variable_get('mail_system');
+  $mail_system['jjfusion_ap_hcp_profile'] = 'JanssenHcpProfileMailSystem';
+  variable_set('mail_system', $mail_system);
+}
+
+/**
+ * Implements hook_enable().
+ */
+function jjfusion_ap_hcp_profile_enable() {
+  module_load_include('inc', 'jjfusion_ap_hcp_profile', 'includes/admin');
+  jnj_veeva_hcp_profile_update_picklist();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function jjfusion_ap_hcp_profile_uninstall() {
+  // Delete the values from client side validations which added above.
+  foreach (array('jnj_veeva_hcp_profile_registration', 'user_login_block', 'user_login', 'jnj_veeva_hcp_profile_forgot_password', 'jnj_veeva_hcp_profile_reset_password', 'jnj_veeva_hcp_profile_forgot_email') as $form_id) {
+    db_delete('clientside_validation_settings')->condition('type', 'custom-forms')->condition('form_id', $form_id)->execute();
+  }
+  // Delete variables from table.	
+  variable_del('janssen_hcp_registration_picklist');
+  variable_del('jnj_veeva_hcp_profile_settings');
+  variable_del('jnj_veeva_hcp_profile_email_templates');
+  variable_del('jnj_veeva_hcp_profile_messages');
+
+  $mail_system = variable_get('mail_system');
+  unset($mail_system['jjfusion_ap_hcp_profile']);
+  variable_set('mail_system', $mail_system);
+}
+
+function jjfusion_ap_hcp_profile_schema() {
+  // DO NOT MODIFY THIS TABLE -- this definition is used to create the table.  
+  $schema['jnj_hcp_rep_request_call'] = array(
+    'description' => t('Store Request call time with UID'),
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'length' => 11,
+        'not null' => TRUE,
+        'description' => '{users}.uid',
+        'default' => 0,
+      ),
+      'rep_id' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'Rep call ID.',
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'req_time' => array(
+        'type' => 'int',
+        'length' => 11,
+        'description' => 'Request time',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+  );
+  return $schema;
+}

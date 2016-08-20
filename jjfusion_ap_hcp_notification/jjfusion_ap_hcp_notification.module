@@ -1,0 +1,293 @@
+<?php
+
+/**
+ * @file
+ * Code for the jjfusion_ap_hcp_notification.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function jjfusion_ap_hcp_notification_permission() {
+  $permissions = array();
+  $permissions['access_notify_configuration'] = array(
+    'title' => t('Access Notification configuration'),
+    'description' => t('Perform configurations for notification settings.'),
+  );
+  return $permissions;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function jjfusion_ap_hcp_notification_menu() {
+  $items['notify_details'] = array(
+    'title' => 'Notification Details',
+    'description' => 'Notification Details',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'jjfusion_ap_hcp_notification_details_id',
+    'access callback' => 'user_is_logged_in',
+  );
+  $items['notify_blck'] = array(
+    'title' => 'Block Reload',
+    'page callback' => 'jjfusion_ap_hcp_notification_block_con',
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );
+  $items['notifications'] = array(
+    'title' => 'Notifications',
+    'description' => 'Notifications',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'jjfusion_ap_hcp_notification_page',
+    'access callback' => 'user_is_logged_in',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function jjfusion_ap_hcp_notification_block_info() {
+  $blocks['notifications'] = array(
+    'info' => t('Notifications'),
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function jjfusion_ap_hcp_notification_block_view($delta = '') {
+  $block = array();
+  switch ($delta) {
+    case 'notifications':
+      $block['subject'] = t('Notifications');
+      $block['content'] = jjfusion_ap_hcp_notification_block_con();
+      break;
+  }
+  return $block;
+}
+
+/**
+ * Implements hook_block_con().
+ */
+function jjfusion_ap_hcp_notification_block_con($delta = '') {
+  global $user;
+  $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  $all_therapy_value = $jnj_veeva_hcp_profile_settings['jnj_veeva_hcp_all_therapy_area_value'];
+  $therapyArea = $all_therapy_value;
+  if (isset($_SESSION['user-details'])) {
+    $therapyArea = $_SESSION['user-details']['therapyArea'];
+  }
+  $therapyarea_items = taxonomy_get_term_by_name('Therapy Area');
+  if (is_array($therapyarea_items) && count($therapyarea_items) > 0) {
+    foreach ($therapyarea_items as $therapyarea_item) {
+      if ($therapyarea_item->name == 'Therapy Area') {
+        $therapy_tid = $therapyarea_item->tid;
+      }
+    }
+  }
+  $therapy_list = taxonomy_get_children($therapy_tid);
+  foreach ($therapy_list as $therapy) {
+    if (trim($therapy->name) == trim($_SESSION['user-details']['therapyArea'])) {
+      $user_therapyarea_tid = $therapy->tid;
+    }
+  }
+
+  $query = db_select('jjfusion_ap_notify_user', 'v');
+  $query->fields('v', array('notification_id'));
+  $query->condition('uid', $user->uid);
+  $result = $query->execute();
+  $exculde_notices = $result->fetchAll();
+  $exculde_notices = array_map('notification_id_fetch', $exculde_notices);
+
+  $notifications = node_load_multiple(array(), array('type' => 'notice'));
+  $output = '';
+  $event_exclude_count = 0;
+  foreach ($notifications as $record) {
+    if (array_search($user_therapyarea_tid, array_column($record->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE || $therapyArea == $all_therapy_value) {
+      $curTime = time();
+      $eventActiveTime = $record->field_display_window[LANGUAGE_NONE][0]['value'];
+      $eventExpiryTime = $record->field_display_window[LANGUAGE_NONE][0]['value2'];
+      if (!in_array($record->nid, $exculde_notices) && $record->field_disable_notice[LANGUAGE_NONE][0]['value'] == 0 && $eventActiveTime <= $curTime && $eventExpiryTime >= $curTime) {
+        $href = $record->field_dismiss_text[LANGUAGE_NONE][0]['value'];
+        $output .= '<li class="welcome" id = ' . $record->nid . '>';
+        $output .= '<h3><a href="' . $href . '">';
+        $output .= $record->title;
+        $output .= '</a></h3>';
+        $output .= '<p>';
+        $output .= $record->field_notice[LANGUAGE_NONE][0]['value'];
+        $output .= '</p>';
+        $output .= '</li>';
+      }
+      else {
+        $event_exclude_count++;
+      }
+    }
+    else {
+      $event_exclude_count++;
+    }
+  }
+  $row_count = count($notifications);
+  if (($row_count - $event_exclude_count) == 0) {
+    $output = '<div class="user-inner"><span class="arrow"></span><div class="notifications" data-count="' . ($row_count - $event_exclude_count) . '"><p class="no_notifications">' . t('No new Notifications here') . '</p></div><a class="btn" href="/notifications">' . t('See All Notifications') . '</a></div>';
+  }
+  else {
+    $output = '<div class="user-inner"><span class="arrow"></span><div class="notifications" data-count="' . ($row_count - $event_exclude_count) . '"><ul>' . $output;
+    $output .= '</ul>';
+    $output .= '</div><a class="btn" href="/notifications">' . t('See All Notifications') . '</a></div>';
+  }
+  print $output;
+  exit();
+}
+
+/**
+ * Admin settings for the Janssen Notifiaction module.
+ */
+function jjfusion_ap_hcp_notification_page() {
+  $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  $all_therapy_value = $jnj_veeva_hcp_profile_settings['jnj_veeva_hcp_all_therapy_area_value'];
+  $therapyArea = $all_therapy_value;
+  if (isset($_SESSION['user-details'])) {
+    $therapyArea = $_SESSION['user-details']['therapyArea'];
+  }
+  $therapyarea_items = taxonomy_get_term_by_name('Therapy Area');
+  if (is_array($therapyarea_items) && count($therapyarea_items) > 0) {
+    foreach ($therapyarea_items as $therapyarea_item) {
+      if ($therapyarea_item->name == 'Therapy Area') {
+        $therapy_tid = $therapyarea_item->tid;
+      }
+    }
+  }
+  $therapy_list = taxonomy_get_children($therapy_tid);
+  foreach ($therapy_list as $therapy) {
+    if (trim($therapy->name) == trim($_SESSION['user-details']['therapyArea'])) {
+      $user_therapyarea_tid = $therapy->tid;
+    }
+  }
+
+  $notifications = node_load_multiple(array(), array('type' => 'notice'));
+  $output = '<header class="short clouds"><h1>' . t('My Notifications') . '</h1></header>';
+  $event_exclude_count = 0;
+  $result = array();
+  foreach ($notifications as $record) {
+    if (array_search($user_therapyarea_tid, array_column($record->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE || $therapyArea == $all_therapy_value) {
+      $curTime = time();
+      $eventActiveTime = $record->field_display_window[LANGUAGE_NONE][0]['value'];
+      $eventExpiryTime = $record->field_display_window[LANGUAGE_NONE][0]['value2'];
+      if ($record->field_disable_notice[LANGUAGE_NONE][0]['value'] == 0 && $eventActiveTime <= $curTime && $eventExpiryTime >= $curTime) {
+        $result[] = $record;
+      }
+      else {
+        $event_exclude_count++;
+      }
+    }
+    else {
+      $event_exclude_count++;
+    }
+  }
+
+  $output = '<header class="short clouds"><h1>' . t('My Notifications') . '</h1></header>';
+  $notify_results = array();
+  $currentweek = '';
+  if ($result != '' && count($result) > 0) {
+    foreach ($result as $key => $type) {
+      $weeknum = date("W", $type->field_display_window[LANGUAGE_NONE][0]['value']);
+      $currentweek = date("W");
+      $year = date("Y", $type->field_display_window[LANGUAGE_NONE][0]['value']);
+      $month = date("M", $type->field_display_window[LANGUAGE_NONE][0]['value']);
+      $time = strtotime(date("Y-m-d H:i", $type->field_display_window[LANGUAGE_NONE][0]['value']));
+      $time = humanTiming($time);
+      if ($weeknum == $currentweek) {
+        $notify_results[$year][$weeknum][] = $type;
+      }
+      else {
+        $notify_results[$year][$month][] = $type;
+      }
+    }
+  }
+  if ($notify_results != 0 && count($notify_results) > 0) {
+    foreach ($notify_results as $key => $value) {
+      if ($key == date("Y")) {
+        foreach ($value as $cu_yr_key => $cu_yr) {
+          if ($cu_yr_key == $currentweek) {
+            $output .= '<section class="notifications"><article><ul><h3 class="blue">' . t('This Week') . '</h3>';
+            foreach ($cu_yr as $cu_wk) {
+              $href = $record->field_dismiss_text[LANGUAGE_NONE][0]['value'];
+              $output .= '<li><a href="' . $href . '" class="' . ($cu_wk->category ? 'icon ' . $cu_wk->category : '') . '">' . $cu_wk->title . '<span>' . humanTiming($cu_wk->field_display_window[LANGUAGE_NONE][0]['value']) . '</span></a></li>';
+            }
+            $output .= '</ul></article></section>';
+          }
+          if ($cu_yr_key != $currentweek) {
+            $output .= '<section class="notifications"><article><ul><h3 class="blue">Month - ' . $cu_yr_key . ' ' . $key . '</h3>';
+            foreach ($cu_yr as $cu_wk) {
+              $href = $record->field_dismiss_text[LANGUAGE_NONE][0]['value'];
+              $output .= '<li><a href="' . $href . '" class="' . ($cu_wk->category ? 'icon ' . $cu_wk->category : '') . '">' . $cu_wk->title . '<span>' . humanTiming($cu_wk->field_display_window[LANGUAGE_NONE][0]['value']) . '</span></a></li>';
+            }
+            $output .= '</ul></article></section>';
+          }
+        }
+      }
+      if ($key != date("Y")) {
+        $output .= '<section class="notifications"><article><ul><h3 class="blue">Year - ' . $key . '</h3>';
+        foreach ($value as $pre_yr) {
+          foreach ($pre_yr as $val) {
+            $href = $record->field_dismiss_text[LANGUAGE_NONE][0]['value'];
+            $output .= '<li><a href="' . $href . '" class="' . ($val->category ? 'icon ' . $val->category : '') . '">' . $val->title . '<span>' . humanTiming($val->field_display_window[LANGUAGE_NONE][0]['value']) . '</span></a></li>';
+          }
+        }
+        $output .= '</ul></article></section>';
+      }
+    }
+  }
+  if (isset($notify_results) && count($notify_results) == 0) {
+    $output .= '<h3 class="blue">' . t('No Notifications') . '</h3>';
+  }
+  return $output;
+}
+
+/**
+ * Function to change time to period.
+ */
+function humanTiming($time) {
+
+  // To get the time since that moment.
+  $time = time() - $time;
+  $tokens = array(
+    31536000 => 'year',
+    2592000 => 'month',
+    604800 => 'week',
+    86400 => 'day',
+    3600 => 'hour',
+    60 => 'minute',
+    1 => 'second',
+  );
+  foreach ($tokens as $unit => $text) {
+    if ($time < $unit) {
+      continue;
+    }
+    $numberOfUnits = floor($time / $unit);
+    return $numberOfUnits . ' ' . $text . (($numberOfUnits > 1) ? 's ago' : ' ago');
+  }
+}
+
+/**
+ * Function to insert the notification.
+ */
+function jjfusion_ap_hcp_notification_details_id() {
+  global $user;
+  db_insert('jjfusion_ap_notify_user')
+      ->fields(array(
+        'uid' => $user->uid,
+        'notification_id' => check_plain($_POST['id']),
+      ))
+      ->execute();
+  exit;
+}
+
+/**
+ * Function to fetch notification id.
+ */
+function notification_id_fetch($value) {
+  return $value->notification_id;
+}

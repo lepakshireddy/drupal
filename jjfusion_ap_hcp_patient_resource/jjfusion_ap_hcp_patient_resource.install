@@ -1,0 +1,28 @@
+<?php
+
+/**
+ * @file
+ * Install, Enable, and Uninstall functions for the Janssen Profile module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function jjfusion_ap_hcp_patient_resource_install() {
+  $mail_system = variable_get('mail_system');
+  $mail_system['jjfusion_ap_hcp_patient_resource'] = 'JanssenproMailSystem';
+  variable_set('mail_system', $mail_system);
+  db_update('system')
+      ->fields(array('weight' => 10))
+      ->condition('name', 'jjfusion_ap_hcp_patient_resource', '=')
+      ->execute();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function jjfusion_ap_hcp_patient_resource_uninstall() {
+  $mail_system = variable_get('mail_system');
+  unset($mail_system['jjfusion_ap_hcp_patient_resource']);
+  variable_set('mail_system', $mail_system);
+}

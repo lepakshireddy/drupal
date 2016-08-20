@@ -1,0 +1,10 @@
+name = JJFUSION AP HCP Activity Tracking
+description = Module for JanssenPRO HCP Activity Tracking
+core = 7.x
+package = JJ Fusion
+
+files[] = classes/TrackEvents.php
+
+scripts[] = js/janssenpro.gaevents.js
+
+dependencies[] = jjfusion_ap_hcp_profile

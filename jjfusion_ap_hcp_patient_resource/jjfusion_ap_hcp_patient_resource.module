@@ -1,0 +1,834 @@
+<?php
+
+/**
+ * @file
+ * Provides features of patient resources in this module.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function jjfusion_ap_hcp_patient_resource_permission() {
+  $permissions = array();
+  $permissions['access_janssen_site_configuration'] = array(
+    'title' => t('Access Janssen Site configuration'),
+    'description' => t('Perform configurations for janssen site settings.'),
+  );
+  return $permissions;
+}
+
+/**
+ * Implements hook_init().
+ */
+function jjfusion_ap_hcp_patient_resource_init() {
+  janssenpro_patient_restriction();
+}
+
+/**
+ * Implements hook_menu().
+ */
+function jjfusion_ap_hcp_patient_resource_menu() {
+  $items = array();
+  $items['patient-resources'] = array(
+    'title' => 'Patient Resources',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jjfusion_ap_hcp_patient_resources_form'),
+    'access callback' => 'user_is_logged_in',
+  );
+  $items['resources/files/%'] = array(
+    'title' => 'Patient Resources Asset load',
+    'page callback' => 'patient_resources_assets_load',
+    /* Anonymous user has to access the link. */
+    'access callback' => TRUE,
+  );
+  $items['patient-resource-video/%'] = array(
+    'title' => 'Patient Resources Video',
+    'page callback' => 'patient_resources_video',
+    'access callback' => 'user_is_logged_in',
+  );
+  $items['patient-resources/results'] = array(
+    'title' => 'Patient Resources',
+    'page callback' => 'patient_resources_result_page',
+    'access callback' => 'user_is_logged_in',
+  );
+  $items['admin/config/jnj-custom/settings'] = array(
+    'title' => 'Patient resources Settings',
+    'description' => 'Administer JnJ custom Settings.',
+    'page callback' => 'system_admin_menu_block_page',
+    'access arguments' => array('access_janssen_site_configuration'),
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+  );
+
+  $items['admin/config/jnj-custom/settings/general'] = array(
+    'title' => 'Patient resources - General Settings',
+    'description' => 'Patient resources - general settings.',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jjfusion_ap_hcp_patient_resource_settings_form'),
+    'access arguments' => array('access_janssen_site_configuration'),
+    'file' => 'includes/admin.inc',
+    'weight' => -1,
+  );
+  $items['admin/config/jnj-custom/settings/patient-short-urls'] = array(
+    'title' => 'Patient resources - Short URLs',
+    'description' => 'generate short urls for patient resources links',
+    'page callback' => 'patient_resources_short_urls',
+    'access arguments' => array('access_janssen_site_configuration'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => -1,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_mail().
+ */
+function jjfusion_ap_hcp_patient_resource_mail($key, &$message, $params) {
+  if ($key == 'emailresources') {
+    $message['headers']['MIME-version'] = '1.0';
+    $message['headers']['Content-Type'] = 'text/html; charset=utf-8';
+    $message['headers']['Return-Path'] = variable_get('site_mail', '');
+  }
+  $message['headers']['CC'] = $params['cc'];
+  $message['subject'] = $params['context']['subject'];
+  $message['body'][] = $params['context']['message'];
+}
+
+/**
+ * Modify the drupal mail system to send HTML emails.
+ */
+class JanssenproMailSystem implements MailSystemInterface {
+
+  /**
+   * Concatenate and wrap the e-mail body for plain-text mails.
+   */
+  public function format(array $message) {
+    $message['body'] = implode("\n\n", $message['body']);
+    return $message;
+  }
+
+  /**
+   * Send an e-mail message, using Drupal variables and default settings.
+   *
+   * @see http://php.net/manual/en/function.mail.php
+   * @see drupal_mail()
+   */
+  public function mail(array $message) {
+    $mimeheaders = array();
+    if (isset($message['headers']['Return-Path']) && !ini_get('safe_mode')) {
+      $return_path_set = strpos(ini_get('sendmail_path'), ' -f');
+      if (!$return_path_set) {
+        $message['Return-Path'] = $message['headers']['Return-Path'];
+        unset($message['headers']['Return-Path']);
+      }
+    }
+    foreach ($message['headers'] as $name => $value) {
+      $mimeheaders[] = $name . ': ' . mime_header_encode($value);
+    }
+    $line_endings = variable_get('mail_line_endings', MAIL_LINE_ENDINGS);
+    if (isset($message['Return-Path']) && !ini_get('safe_mode')) {
+      // On most non-Windows systems, the "-f" option to the sendmail command
+      // is used to set the Return-Path. There is no space between -f and
+      // the value of the return path.
+      $mail_result = @mail(
+              $message['to'], mime_header_encode($message['subject']), preg_replace('@\r?\n@', $line_endings, $message['body']), join("\n", $mimeheaders), '-f' . $message['Return-Path']
+      );
+    }
+    else {
+      // The optional $additional_parameters argument to mail() is not
+      // allowed if safe_mode is enabled. Passing any value throws a PHP
+      // warning and makes mail() return FALSE.
+      $mail_result = @mail(
+              $message['to'], mime_header_encode($message['subject']), preg_replace('@\r?\n@', $line_endings, $message['body']), join("\n", $mimeheaders)
+      );
+    }
+    return $mail_result;
+  }
+
+}
+
+/**
+ * Implements hook_theme().
+ */
+function jjfusion_ap_hcp_patient_resource_theme() {
+  $themes = array(
+    'patient_resources_result_page_temp' => array(
+      'variables' => array('data' => NULL),
+      'template' => 'patient-resources-result-page',
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_patient_resource') . '/template',
+    ),
+    'patient_resources_result_page_email' => array(
+      'variables' => array('data' => NULL),
+      'template' => 'patient-resources-result-email',
+      'path' => drupal_get_path('module', 'jjfusion_ap_hcp_patient_resource') . '/template',
+    ),
+  );
+  return $themes;
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function jjfusion_ap_hcp_patient_resource_block_info() {
+  $blocks['private_login'] = array(
+    'info' => t('Login form while access denied'),
+  );
+  $blocks['email_resources'] = array(
+    'info' => t('Patient resources Email form'),
+  );
+  $blocks['patient_resources_home'] = array(
+    'info' => t('Home page Patient resources'),
+  );
+  $blocks['patient_resources_products'] = array(
+    'info' => t('Products page Patient resources'),
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function jjfusion_ap_hcp_patient_resource_block_view($delta = '') {
+  $block = array();
+  switch ($delta) {
+    case 'private_login':
+      $block['subject'] = '';
+      $block['content'] = drupal_get_form('patient_login');
+      break;
+
+    case 'email_resources':
+      $block['subject'] = t('Email Resources');
+      $block['content'] = drupal_get_form('email_resources_form');
+      break;
+
+    case 'patient_resources_home':
+      $block['subject'] = t('Home page patient Resources');
+      $block['content'] = jjfusion_ap_hcp_patient_resource_home();
+      break;
+
+    case 'patient_resources_products':
+      $block['subject'] = t('Products page Patient Resources');
+      $block['content'] = jjfusion_ap_hcp_patient_resource_products();
+      break;
+  }
+  return $block;
+}
+
+/**
+ * Patient resources form to display products and conditions for HCP selection.
+ */
+function jjfusion_ap_hcp_patient_resources_form() {
+  $form['#attributes']['class'][] = 'patient-resources';
+  $resources = get_products_conditions();
+
+  $form['conditions'] = array(
+    '#prefix' => '<section class="conditions"><h3 class="blue">' . t('Select condition(s) <span>Click on a relevant condition to view resources for it') . '</span></h3><fieldset>',
+    '#type' => 'checkboxes',
+    '#title' => 'Select condition',
+    '#title_display' => 'invisible',
+    '#options' => $resources['conditions'],
+    '#suffix' => '</fieldset></section>',
+  );
+
+  $form['products'] = array(
+    '#prefix' => '<section class="products"><h3 class="blue">' . t('Select product(s) <span>Click on a relevant product to view resources for it') . '</span></h3><fieldset>',
+    '#type' => 'checkboxes',
+    '#title' => t('Select product'),
+    '#title_display' => 'invisible',
+    '#options' => $resources['products'],
+    '#suffix' => '</fieldset></section>',
+  );
+
+  $form['submit'] = array(
+    '#prefix' => '<fieldset class="action"><p>' . t('Once you have made your selection, click "view resources" to view available information.') . '</p>',
+    '#attributes' => array('class' => array('btn right')),
+    '#type' => 'submit',
+    '#value' => t("View resources"),
+    '#suffix' => '<a href="/patient-resources" class="btn reset-btn resource-reset-btn">Reset</a></fieldset>',
+  );
+  $form['#prefix'] = '<header style="background-image:url(/' . path_to_theme('janssenpro') . '/images/header_resources.jpg)" class="tall">
+      <h1>' . t('Patient Resources') . '</h1>
+    </header>';
+  $form['#suffix'] = '<div class="intro-text strong">
+      <p>' . t('Some resources have been produced by independent organisations.  These resources are provided for your information only. They may contain content Janssen does not endorse. Janssen is not responsible for the validity of the information on these resources. These resources may contain or link to information that is not consistent with the way medicines are used in Australia.') . '</p>
+    </div>';
+  return $form;
+}
+
+/**
+ * Form submit to the patient resources form.
+ */
+function jjfusion_ap_hcp_patient_resources_form_submit($form, &$form_state) {
+
+  $products = array_filter($form_state['values']['products']);
+  $conditions = array_filter($form_state['values']['conditions']);
+  $param1 = implode(',', $products);
+  $param2 = implode(',', $conditions);
+  drupal_goto('patient-resources/results', array('query' => array('pname' => $param1, 'dname' => $param2)));
+}
+
+/**
+ * Display patient resources results based on HCP selection.
+ */
+function patient_resources_result_page($type = '') {
+  $query_params = drupal_get_query_parameters();
+  $products = $query_params['pname'];
+  $conditions = $query_params['dname'];
+  $resource_tid = get_taxonomy_resource_id('Resource type');
+  $pi_node_conditions = array();
+  if (function_exists('nodequeue_load_queue_by_name') && nodequeue_load_queue_by_name('patient_resources')->qid != '') {
+    $pi_node_conditions = nodequeue_load_nodes(nodequeue_load_queue_by_name('patient_resources')->qid, '', '', 0);
+  }
+  $resource_nodequeue_uuids = array();
+  foreach ($pi_node_conditions as $pi_condtions) {
+    $resource_nodequeue_uuids[] = $pi_condtions->uuid;
+  }
+  $resource_list_nodes = node_load_multiple(array(), array('type' => 'file_resource'));
+  foreach ($resource_list_nodes as $resource_node) {
+    if (!in_array($resource_node->uuid, $resource_nodequeue_uuids)) {
+      $pi_node_conditions[$resource_node->uuid] = $resource_node;
+    }
+  }
+  $resources = array();
+  foreach ($pi_node_conditions as $pi_condtions) {
+    if (isset($pi_condtions->field_general_tags[LANGUAGE_NONE]) && array_search($resource_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+      $resources[] = $pi_condtions;
+    }
+  }
+
+  drupal_add_js(array('shorturls' => variable_get('janssenpro_patient_short_urls', '')), array('type' => 'setting'));
+  $pro_nid = explode(',', $products);
+  $cond_nid = explode(',', $conditions);
+  /* Only Products */
+  if ($products) {
+    if (!$conditions) {
+      foreach ($pro_nid as $pid) {
+        $product_info[] = array('pid' => $pid);
+      }
+      if ($type == 'email') {
+        return theme('patient_resources_result_page_email', array('product_data' => $product_info, 'resources' => $resources));
+      }
+      return theme('patient_resources_result_page_temp', array('product_data' => $product_info, 'resources' => $resources));
+    }
+  }
+  /* Only Condition */
+  if (!$products) {
+    if ($conditions) {
+      foreach ($cond_nid as $cid) {
+        $condition_info[] = array('cid' => $cid);
+      }
+      if ($type == 'email') {
+        return theme('patient_resources_result_page_email', array('cond_data' => $condition_info, 'resources' => $resources));
+      }
+      return theme('patient_resources_result_page_temp', array('cond_data' => $condition_info, 'resources' => $resources));
+    }
+  }
+  /* both conditon and product */
+  if ($products) {
+    if ($conditions) {
+      foreach ($pro_nid as $pid) {
+        $product_con_info[] = array('pid' => $pid);
+      }
+      foreach ($cond_nid as $cid) {
+        $condition_id[] = array('cid' => $cid);
+      }
+    }
+    if ($type == 'email') {
+      return theme('patient_resources_result_page_email', array(
+        'pro_con_data' => $product_con_info,
+        'con_id' => $condition_id,
+        'resources' => $resources,
+      )
+      );
+    }
+    return theme('patient_resources_result_page_temp', array(
+      'pro_con_data' => $product_con_info,
+      'con_id' => $condition_id,
+      'resources' => $resources,
+    )
+    );
+  }
+}
+
+/**
+ * Get the products and conditions for patient resources.
+ */
+function get_products_conditions() {
+
+  $products = array();
+  $conditions = array();
+  $product_tid = get_taxonomy_resource_id('Products');
+  $nodes_products = taxonomy_get_children($product_tid);
+  foreach ($nodes_products as $prod) {
+    $products[$prod->tid] = $prod->name;
+  }
+  $condition_tid = get_taxonomy_resource_id('Condition');
+  $nodes_conditions = taxonomy_get_children($condition_tid);
+
+  foreach ($nodes_conditions as $cond) {
+    $conditions_list[$cond->tid] = $cond->name;
+  }
+  $resource_tid = get_taxonomy_resource_id('Resource type');
+  $pi_node_conditions = node_load_multiple(array(), array('type' => 'file_resource'));
+  foreach ($pi_node_conditions as $pi_condtions) {
+    if (isset($pi_condtions->field_general_tags[LANGUAGE_NONE]) && array_search($resource_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+      foreach ($pi_condtions->field_general_tags[LANGUAGE_NONE] as $resource_tag) {
+        if (array_key_exists($resource_tag['tid'], $conditions_list)) {
+          $conditions[$resource_tag['tid']] = $conditions_list[$resource_tag['tid']];
+        }
+      }
+    }
+  }
+  $conditions = array_intersect($conditions_list, $conditions);
+  $resources = array('products' => $products, 'conditions' => $conditions);
+
+  return $resources;
+}
+
+/**
+ * Implements hook_views_pre_render().
+ */
+function jjfusion_ap_hcp_patient_resource_views_pre_render(&$view) {
+  $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  $all_therapy_value = $jnj_veeva_hcp_profile_settings['jnj_veeva_hcp_all_therapy_area_value'];
+  $therapyArea = $all_therapy_value;
+  if (isset($_SESSION['user-details'])) {
+    $therapyArea = $_SESSION['user-details']['therapyArea'];
+  }
+  if ($view->name == 'patient_resources_home_page') {
+    foreach ($view->result as $key => $res) {
+      $user_therapy = FALSE;
+      foreach ($res->field_field_therapy_area as $therapy) {
+        if ($therapy['raw']['value'] == $therapyArea || $therapyArea == $all_therapy_value) {
+          $user_therapy = TRUE;
+        }
+      }
+      if (!$user_therapy) {
+        unset($view->result[$key]);
+      }
+    }
+  }
+}
+
+/**
+ * Form for patient resources email.
+ */
+function email_resources_form() {
+  $jnj_veeva_hcp_profile_signup_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_signup_settings', ''));
+  $form['email_reso']['text'] = array(
+    '#markup' => t('<p>Email these resources to yourself or your patient. A special password will be provided so patients can access these resources at home.</p><fieldset>'),
+  );
+
+  $form['email_reso']['PatientName'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Patient Name'),
+    '#required' => TRUE,
+    '#title_display' => 'invisible',
+    '#attributes' => array('placeholder' => (t('Patient Name'))),
+    '#required_error' => !empty($jnj_veeva_hcp_profile_signup_settings['firstName_req_error']) ? $jnj_veeva_hcp_profile_signup_settings['firstName_req_error'] : t('Please enter Patient name'),
+    '#rules' => array(
+      array('rule' => 'validate_alpha', 'error' => !empty($jnj_veeva_hcp_profile_signup_settings['alpha_other_error']) ? $jnj_veeva_hcp_profile_signup_settings['alpha_other_error'] : t('Enter only characters')),
+    ),
+  );
+  $query_params = drupal_get_query_parameters();
+  $form['email_reso']['products'] = array(
+    '#type' => 'hidden',
+    '#value' => (isset($query_params['pname']) ? $query_params['pname'] : ''),
+  );
+  $form['email_reso']['conditions'] = array(
+    '#type' => 'hidden',
+    '#value' => (isset($query_params['dname']) ? $query_params['dname'] : ''),
+  );
+  $form['email_reso']['email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Email'),
+    '#title_display' => 'invisible',
+    '#attributes' => array('placeholder' => (t('Patient email address'))),
+    '#required' => TRUE,
+    '#required_error' => (!empty($jnj_veeva_hcp_profile_signup_settings['email_req_error']) ? $jnj_veeva_hcp_profile_signup_settings['email_req_error'] : t('Please enter the email')),
+    '#rules' => array(
+      array('rule' => 'email', 'error' => !empty($jnj_veeva_hcp_profile_signup_settings['email_other_error']) ? $jnj_veeva_hcp_profile_signup_settings['email_other_error'] : t('Invalid email address')),
+    ),
+    '#suffix' => t('</fieldset>'),
+  );
+
+  $form['email_reso']['submit'] = array(
+    '#prefix' => t('<fieldset>'),
+    '#attributes' => array('class' => array('btn')),
+    '#type' => 'submit',
+    '#value' => t("Submit"),
+    '#suffix' => t('<div class="ajax-loader"></div></fieldset>'),
+  );
+  return $form;
+}
+
+/**
+ * Form for patient resources email submit.
+ */
+function email_resources_form_submit($form, &$form_state) {
+  global $user;
+  $to_email = $form_state['values']['email'];
+  $from_address = variable_get('site_mail', '');
+  $resources_email_body = patient_resources_result_page('email');
+  $params = array(
+    'context' => array(
+      'subject' => variable_get('jjfusion_ap_hcp_patient_resource_email_subject', ''),
+      'message' => $resources_email_body,
+    ),
+  );
+  $language = '';
+  $params['cc'] = $user->name;
+  drupal_mail('jjfusion_ap_hcp_patient_resource', 'emailresources', $to_email, $language, $params, $from_address);
+}
+
+/**
+ * Patient login form to login patients by using secrect Key.
+ */
+function patient_login() {
+  $form = array();
+
+  if (drupal_match_path($_SERVER['REQUEST_URI'], variable_get('jjfusion_ap_hcp_patient_resource_patient_pages_list', ''))) {
+    drupal_set_title('Password Required');
+    $form['intro_text'] = array(
+      '#markup' => t('<fieldset><style>.content article, .login #main .content header.clouds{display:none;}</style><p>Please enter your assigned password to access this patient Resource.</p></fieldset>'),
+    );
+    $form['secret_key'] = array(
+      '#type' => 'textfield',
+      '#prefix' => '<fieldset>',
+      '#required' => TRUE,
+      '#title_display' => 'invisible',
+      '#attributes' => array('placeholder' => (t('Enter password'))),
+      '#required_error' => t('Please enter password'),
+      '#suffix' => '</fieldset>',
+    );
+    $form['submit'] = array(
+      '#prefix' => t('<fieldset class="controls">'),
+      '#attributes' => array('class' => array('btn')),
+      '#type' => 'submit',
+      '#value' => t("OK"),
+      '#suffix' => t('</fieldset>'),
+    );
+    $form['#prefix'] = '<header class="short">
+	<h1>Password Required</h1>
+</header>';
+    return $form;
+  }
+  return $form;
+}
+
+/**
+ * Patient login form validate.
+ */
+function patient_login_validate($form, &$form_state) {
+  global $user;
+  $secret_keys = preg_split('/\n+/', variable_get('jjfusion_ap_hcp_patient_resource_secret_keys', ''));
+  $secret_keys = implode("\n", $secret_keys);
+  if (drupal_match_path(trim($form_state['values']['secret_key']), $secret_keys)) {
+    if ($uid = user_authenticate(variable_get('jjfusion_ap_hcp_patient_resource_patient_username', ''), variable_get('jjfusion_ap_hcp_patient_resource_patient_username', ''))) {
+      $form_data = array('uid' => $uid);
+
+      $user = user_load($uid);
+      user_login_finalize($form_data);
+      return TRUE;
+    }
+  }
+  form_set_error('secret_key', t('The password you entered is not correct. Please check your password and try again'));
+}
+
+/**
+ * Implements hook_user_login().
+ */
+function jjfusion_ap_hcp_patient_resource_user_login(&$edit, $account) {
+  global $user;
+  if (in_array('patient', $user->roles)) {
+    $_SESSION['patientlogin'] = 'success';
+    $_GET['destination'] = substr(urldecode($_SERVER['REQUEST_URI']), 1);
+  }
+}
+
+/**
+ * Function to implement patient restriction.
+ */
+function janssenpro_patient_restriction() {
+  global $user;
+  if ($user->uid > 0 && in_array('patient', $user->roles)) {
+    $patient_pages = preg_split('/\n+/', variable_get('jjfusion_ap_hcp_patient_resource_patient_pages_list', ''));
+    $patient_pages = implode("\n", $patient_pages);
+    if ($_SERVER['REQUEST_URI'] != '/user/logout' && !drupal_match_path($_SERVER['REQUEST_URI'], $patient_pages)) {
+      drupal_add_js(array('patientPages' => TRUE), 'setting');
+      drupal_goto('user/logout');
+      exit();
+    }
+  }
+}
+
+/**
+ * Brightcove video display for patient resources.
+ */
+function patient_resources_video() {
+  if (arg(1) != '') {
+    $resource_info = node_load(arg(1));
+    $video = render(field_view_field('node', $resource_info, 'body', array(
+      'label' => 'hidden',
+      'type' => 'text_summary_or_trimmed',
+    )));
+    if (arg(2) == 'video') {
+      print '<title>' . t('Patient Resource Video') . '</title><h3 style="margin 0 auto;text-align: center;">' . check_plain($resource_info->title) . '</h3>'
+          . '<script src="https://sadmin.brightcove.com/js/BrightcoveExperiences.js"></script><div style="margin 0 auto;text-align: center;">' . $video . '</div>';
+    }
+    else {
+      print $video;
+    }
+  }
+  exit;
+}
+
+/**
+ * Function to generate short urls for patient resources.
+ */
+function patient_resources_short_urls() {
+  global $base_url;
+
+  $resource_info = array();
+  $rows = array();
+  if (function_exists('shorten_url')) {
+    $resource_type_tid = get_taxonomy_resource_id('Resource type');
+    $pi_node_conditions = node_load_multiple(array(), array('type' => 'file_resource'));
+    $resources = array();
+    foreach ($pi_node_conditions as $pi_condtions) {
+      if (isset($pi_condtions->field_general_tags[LANGUAGE_NONE]) && array_search($resource_type_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+        $resources[] = $pi_condtions;
+      }
+    }
+    $resource_type_list = taxonomy_get_children($resource_type_tid);
+    $resource_name = array(
+      'Patient Booklet' => 'booklet',
+      'Patient Information sheet' => 'sheet',
+      'Patient Website' => 'website',
+      'video' => 'video',
+      'Other' => 'other',
+      'Patient app' => 'app',
+    );
+    foreach ($resource_type_list as $resource_type_val) {
+      $resource_types[$resource_type_val->tid] = $resource_name[$resource_type_val->name];
+    }
+    foreach ($resources as $resource) {
+      if (isset($resource->field_general_tags[LANGUAGE_NONE]) && array_search($resource_type_tid, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+        $res_type_name = '';
+        foreach ($resource_types as $res_key => $res_val) {
+          if (array_search($res_key, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+            $res_type_name = $res_val;
+          }
+        }
+        if (strpos($resource->field_resource_file[LANGUAGE_NONE][0]['filename'], 'dummy') === FALSE) {
+          $url = $base_url . str_replace('public://', '/resources/files/', $resource->field_resource_file[LANGUAGE_NONE][0]['uri']);
+          $resource_info[$resource->nid]['file'] = shorten_url($url);
+          $rows[] = array(
+            $resource->title,
+            $url,
+            $resource_info[$resource->nid]['file'],
+          );
+        }
+        elseif (trim($res_type_name) == 'video') {
+          $url = $base_url . '/patient-resource-video/' . $resource->nid . '/video';
+          $resource_info[$resource->nid]['video'] = shorten_url($url);
+          $rows[] = array(
+            $resource->title,
+            $url,
+            $resource_info[$resource->nid]['video'],
+          );
+        }
+      }
+    }
+  }
+  variable_set('janssenpro_patient_short_urls', $resource_info);
+  $variables['header'] = array('Resource Title', 'URL', 'Short URL');
+  $variables['rows'] = $rows;
+  $variables['attributes'] = array();
+  $variables['sticky'] = FALSE;
+  return theme_table($variables);
+}
+
+/**
+ * Function to get the patient resources under home page based on therapy area.
+ */
+function jjfusion_ap_hcp_patient_resource_home() {
+  $resource_list = '';
+  $jnj_veeva_hcp_profile_settings = drupal_json_decode(variable_get('jnj_veeva_hcp_profile_settings', ''));
+  $all_therapy_value = $jnj_veeva_hcp_profile_settings['jnj_veeva_hcp_all_therapy_area_value'];
+  $therapyArea = $all_therapy_value;
+  if (isset($_SESSION['user-details'])) {
+    $therapyArea = $_SESSION['user-details']['therapyArea'];
+  }
+  $therapy_tid = get_taxonomy_resource_id('Therapy Area');
+  $therapy_list = taxonomy_get_children($therapy_tid);
+  foreach ($therapy_list as $therapy) {
+    if (trim($therapy->name) == trim($_SESSION['user-details']['therapyArea'])) {
+      $user_therapyarea_tid = $therapy->tid;
+    }
+  }
+  $resource_type_tid = get_taxonomy_resource_id('Resource type');
+  $internal_tid = get_taxonomy_resource_id('Internal');
+  $external_tid = get_taxonomy_resource_id('External');
+  $resource_type_list = taxonomy_get_children($resource_type_tid);
+  $resource_name = array(
+    'Patient Booklet' => 'booklet',
+    'Patient Information sheet' => 'sheet',
+    'Patient Website' => 'website',
+    'video' => 'video',
+    'Other' => 'other',
+    'Patient app' => 'app',
+  );
+  foreach ($resource_type_list as $resource_type_val) {
+    $resource_types[$resource_type_val->tid] = $resource_name[$resource_type_val->name];
+  }
+  $pi_node_conditions = node_load_multiple(array(), array('type' => 'file_resource'));
+  $resources = array();
+  foreach ($pi_node_conditions as $pi_condtions) {
+    if (isset($pi_condtions->field_general_tags[LANGUAGE_NONE]) && array_search($resource_type_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+      if (array_search($user_therapyarea_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE || $therapyArea == $all_therapy_value) {
+        $resources[] = $pi_condtions;
+      }
+    }
+  }
+  if (count($resources) > 0) {
+    foreach ($resources as $resource) {
+      $path = '';
+      if (strpos($resource->field_resource_file[LANGUAGE_NONE][0]['filename'], 'dummy') === FALSE) {
+        $url = file_create_url($resource->field_resource_file[LANGUAGE_NONE][0]['uri']);
+        $url = parse_url($url);
+        $path = $url['path'];
+      }
+      elseif ($resource->body[LANGUAGE_NONE][0]['summary'] != '') {
+        $path = trim(strip_tags($resource->body[LANGUAGE_NONE][0]['summary']));
+      }
+      $res_type_name = '';
+      foreach ($resource_types as $res_key => $res_val) {
+        if (array_search($res_key, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+          $res_type_name = $res_val;
+        }
+      }
+      $internal_external = '';
+      if (array_search($internal_tid, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+        $internal_external = 'Internal';
+      }
+      elseif (array_search($external_tid, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+        $internal_external = 'External';
+      }
+      $resource_list .= '<li class = "' . $internal_external . ' ' . $res_type_name . '"><a href="' . $path . '" title="' . strip_tags($resource->field_teaser[LANGUAGE_NONE][0]['value']) . '" class="" target="_blank" data-vid="' . ($res_type_name == 'video' ? $resource->nid : '') . '">' . $resource->title . '</a></li>';
+    }
+  }
+  if ($resource_list) {
+    $result = '<div class="related-patient-resources"><h3 class="blue">Related patient resources</h3><p>' . (isset($_SESSION['user-details']) ? $_SESSION['user-details']['therapyArea'] : '') . ' patient resources</p>'
+        . '<div class="patient-wrapper"><ul>' . $resource_list . '</ul></div></div>';
+  }
+  return $result;
+}
+
+/**
+ * Get patient resources under products page based on product mapping.
+ */
+function jjfusion_ap_hcp_patient_resource_products() {
+  $resource_list = '';
+  $product_tid = get_taxonomy_resource_id(drupal_get_title());
+  $internal_tid = get_taxonomy_resource_id('Internal');
+  $external_tid = get_taxonomy_resource_id('External');
+  $resource_type_tid = get_taxonomy_resource_id('Resource type');
+  $resource_type_list = taxonomy_get_children($resource_type_tid);
+  $resource_name = array(
+    'Patient Booklet' => 'booklet',
+    'Patient Information sheet' => 'sheet',
+    'Patient Website' => 'website',
+    'video' => 'video',
+    'Other' => 'other',
+    'Patient app' => 'app',
+  );
+  foreach ($resource_type_list as $resource_type_val) {
+    $resource_types[$resource_type_val->tid] = $resource_name[$resource_type_val->name];
+  }
+  $pi_node_conditions = node_load_multiple(array(), array('type' => 'file_resource'));
+  $resources = array();
+  foreach ($pi_node_conditions as $pi_condtions) {
+    if (isset($pi_condtions->field_general_tags[LANGUAGE_NONE]) && array_search($resource_type_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+      if (array_search($product_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE && array_search($internal_tid, array_column($pi_condtions->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+        $resources[] = $pi_condtions;
+      }
+    }
+  }
+  if (count($resources) > 0) {
+    foreach ($resources as $resource) {
+      $path = '';
+      if (strpos($resource->field_resource_file[LANGUAGE_NONE][0]['filename'], 'dummy') === FALSE) {
+        $url = file_create_url($resource->field_resource_file[LANGUAGE_NONE][0]['uri']);
+        $url = parse_url($url);
+        $path = $url['path'];
+      }
+      elseif ($resource->body[LANGUAGE_NONE][0]['summary'] != '') {
+        $path = trim(strip_tags($resource->body[LANGUAGE_NONE][0]['summary']));
+      }
+      $res_type_name = '';
+      foreach ($resource_types as $res_key => $res_val) {
+        if (array_search($res_key, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+          $res_type_name = $res_val;
+        }
+      }
+      $internal_external = '';
+      if (array_search($internal_tid, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+        $internal_external = 'Internal';
+      }
+      elseif (array_search($external_tid, array_column($resource->field_general_tags[LANGUAGE_NONE], 'tid')) !== FALSE) {
+        $internal_external = 'External';
+      }
+      $resource_list .= '<li class = "' . $res_type_name . '"><a href="' . $path . '" title="' . strip_tags($resource->field_teaser[LANGUAGE_NONE][0]['value']) . '" class="' . $internal_external . '" target="_blank" data-vid="' . ($res_type_name == 'video' ? $resource->nid : '') . '">' . $resource->title . '</a></li>';
+    }
+  }
+  if ($resource_list) {
+    $result = '<div class="related-patient-resources"><h3 class="blue">Related patient resources</h3><p>' . drupal_get_title() . ' patient resources</p>'
+        . '<div class="patient-wrapper"><ul>' . $resource_list . '</ul></div></div>';
+  }
+  return $result;
+}
+
+/**
+ * Function to load the resources for patient.
+ */
+function patient_resources_assets_load() {
+  $scheme = 'public';
+  $target = arg(2);
+  if (!$target) {
+    drupal_goto('');
+    exit();
+  }
+  $uri = $scheme . '://' . $target;
+  if (!(isset($_SESSION['patientlogin']) && $_SESSION['patientlogin'] == 'success')) {
+    drupal_access_denied();
+    drupal_exit();
+  }
+  elseif (file_stream_wrapper_valid_scheme($scheme) && file_exists($uri)) {
+    $headers = file_download_headers($uri);
+    if (count($headers)) {
+      file_transfer($uri, $headers);
+    }
+    drupal_access_denied();
+  }
+  else {
+    drupal_not_found();
+  }
+  drupal_exit();
+}
+
+/**
+ * Get taxonomy resource id.
+ */
+function get_taxonomy_resource_id($type) {
+  $resource_type = taxonomy_get_term_by_name($type);
+  if (is_array($resource_type) && count($resource_type) > 0) {
+    foreach ($resource_type as $resource_val) {
+      if ($resource_val->name == $type) {
+        $resource_type_tid = $resource_val->tid;
+      }
+    }
+  }
+  return $resource_type_tid;
+}

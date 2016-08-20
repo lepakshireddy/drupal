@@ -1,0 +1,58 @@
+<?php
+
+/**
+ * @file
+ * Install, Enable, and Uninstall functions for the Janssen Profile module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function jjfusion_ap_hcp_activity_tracking_schema() {
+  $schema['janssen_tracking_details'] = array(
+    'description' => 'To store Tracking event details',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'length' => 11,
+        'description' => 'ID',
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'Type',
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'File Name',
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'mca_ctivityid' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'MCActivityID',
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'datevalue' => array(
+        'type' => 'int',
+        'length' => 11,
+        'description' => 'Date',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'iconnect_status' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+
+  return $schema;
+}
